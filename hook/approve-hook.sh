@@ -17,6 +17,12 @@
 #   }
 # }
 
+# Check for jq dependency
+if ! command -v jq &> /dev/null; then
+  echo '{"decision": "approve", "reason": "jq not installed, approving by default"}'
+  exit 0
+fi
+
 # Read the hook input from stdin
 INPUT=$(cat)
 

@@ -11,15 +11,20 @@ export interface Env {
   VAPID_PRIVATE_KEY: string;
   VAPID_SUBJECT: string;
   ENVIRONMENT: string;
+  PWA_ORIGIN?: string;
 }
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
 
-    // CORS headers for PWA
+    // CORS headers for PWA - restrict to specific origin in production
+    const allowedOrigin = env.ENVIRONMENT === 'development'
+      ? '*'
+      : (env.PWA_ORIGIN || 'https://claude-approver.pages.dev');
+
     const corsHeaders = {
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin': allowedOrigin,
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
     };

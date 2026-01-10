@@ -99,6 +99,12 @@ Your PWA: `https://claude-approver.pages.dev`
 
 ```bash
 cd packages/cli
+pnpm start init --server https://claude-code-notifier.YOUR_SUBDOMAIN.workers.dev
+```
+
+Or set the environment variable:
+```bash
+export CLAUDE_NOTIFIER_SERVER=https://claude-code-notifier.YOUR_SUBDOMAIN.workers.dev
 pnpm start init
 ```
 
@@ -135,6 +141,15 @@ Add to `~/.claude/settings.json`:
 Make the hook executable:
 ```bash
 chmod +x /path/to/claude-code-notifier/hook/approve-hook.sh
+```
+
+**Note:** The hook script requires `jq` for JSON parsing:
+```bash
+# macOS
+brew install jq
+
+# Ubuntu/Debian
+sudo apt install jq
 ```
 
 ## Hook Configuration
