@@ -64,6 +64,21 @@ async function init() {
   closeSettings.addEventListener('click', () => settingsModal.classList.add('hidden'));
   modalBackdrop.addEventListener('click', () => settingsModal.classList.add('hidden'));
 
+  // View setup guide from settings
+  const viewSetupGuideBtn = document.getElementById('view-setup-guide');
+  const installModal = document.getElementById('install-modal');
+  const closeInstall = document.getElementById('close-install');
+  const installBackdrop = installModal?.querySelector('.modal-backdrop');
+  
+  viewSetupGuideBtn?.addEventListener('click', () => {
+    settingsModal.classList.add('hidden');
+    installModal?.classList.remove('hidden');
+  });
+  
+  // Close install modal handlers (for paired state)
+  closeInstall?.addEventListener('click', () => installModal?.classList.add('hidden'));
+  installBackdrop?.addEventListener('click', () => installModal?.classList.add('hidden'));
+
   const openInfoModal = () => infoModal?.classList.remove('hidden');
   infoBtn?.addEventListener('click', openInfoModal);
   infoBtnSecondary?.addEventListener('click', openInfoModal);
