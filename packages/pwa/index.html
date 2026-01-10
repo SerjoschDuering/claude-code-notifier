@@ -40,6 +40,24 @@
       </div>
     </section>
 
+    <section class="guide">
+      <h2>Setup overview</h2>
+      <ol>
+        <li>Deploy the Cloudflare Worker (includes Durable Objects + push secrets).</li>
+        <li>Deploy this PWA on Cloudflare Pages and add it to your iPhone Home Screen.</li>
+        <li>Pair your phone via the CLI QR code.</li>
+        <li>Install the Claude Code hook so every Bash/Write/Edit request pauses for approval.</li>
+      </ol>
+      <p class="guide-note">Need the full walkthrough? <a href="https://github.com/SerjoschDuering/claude-code-notifier#step-by-step-install" target="_blank" rel="noopener">Read the README install guide</a>.</p>
+      <div class="guide-script">
+        <div class="guide-script-header">
+          <span>Copy-ready Claude install script</span>
+          <button id="copy-installer" class="button secondary">Copy</button>
+        </div>
+        <pre><code id="installer-snippet"></code></pre>
+      </div>
+    </section>
+
     <!-- Settings Modal -->
     <div id="settings-modal" class="modal hidden">
       <div class="modal-backdrop"></div>

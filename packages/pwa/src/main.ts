@@ -1,8 +1,10 @@
 // Main page logic
 import { getPairingData, clearPairingData } from './storage';
-import { getVapidPublicKey, registerPushSubscription, getPendingRequests, submitDecision } from './api';
+import { API_BASE, getVapidPublicKey, registerPushSubscription, getPendingRequests, submitDecision } from './api';
 
 async function init() {
+  setupInstallerSnippet();
+
   // Register service worker
   if ('serviceWorker' in navigator) {
     try {
@@ -101,6 +103,77 @@ async function init() {
 
   // Auto-refresh every 5 seconds
   setInterval(() => loadPendingRequests(pairingData), 5000);
+}
+
+function setupInstallerSnippet() {
+  const snippetEl = document.getElementById('installer-snippet');
+  const copyBtn = document.getElementById('copy-installer');
+  if (!snippetEl || !copyBtn) return;
+
+  const workerUrl = deriveWorkerUrl();
+  const script = buildInstallerScript(workerUrl);
+  snippetEl.textContent = script;
+
+  copyBtn.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(script);
+      copyBtn.textContent = 'Copied!';
+      setTimeout(() => { copyBtn.textContent = 'Copy'; }, 2000);
+    } catch (error) {
+      console.error('Copy failed:', error);
+      copyBtn.textContent = 'Copy failed';
+      setTimeout(() => { copyBtn.textContent = 'Copy'; }, 2000);
+    }
+  });
+}
+
+function deriveWorkerUrl(): string {
+  try {
+    const apiUrl = new URL(API_BASE, window.location.origin);
+    if (apiUrl.pathname.endsWith('/api')) {
+      apiUrl.pathname = apiUrl.pathname.replace(/\/api$/, '');
+    }
+    return apiUrl.href.replace(/\/$/, '');
+  } catch {
+    return API_BASE.replace(/\/api$/, '');
+  }
+}
+
+function buildInstallerScript(workerUrl: string): string {
+  const sanitizedUrl = workerUrl || 'https://claude-code-notifier.YOUR_SUBDOMAIN.workers.dev';
+  return `WORKER_URL="${sanitizedUrl}"
+APP_DIR="$HOME/ClaudeCodeNotifyer"
+
+set -euo pipefail
+
+if [ ! -d "$APP_DIR" ]; then
+  git clone https://github.com/SerjoschDuering/claude-code-notifier.git "$APP_DIR"
+fi
+
+cd "$APP_DIR"
+pnpm install
+pnpm --filter cli start init --server "$WORKER_URL"
+chmod +x hook/approve-hook.sh
+
+cat <<JSON > ~/.claude/settings.json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash $APP_DIR/hook/approve-hook.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
+JSON
+
+echo "All set! Claude Code will request approvals via $WORKER_URL"`;
 }
 
 async function loadPendingRequests(pairingData: { pairingId: string; pairingSecret: string }) {

@@ -1,7 +1,7 @@
 // API client for communicating with the Worker
 
 // Use relative URL in production, configurable for dev
-const API_BASE = import.meta.env.VITE_API_URL || '/api';
+export const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 interface SignedRequestParams {
   pairingId: string;
