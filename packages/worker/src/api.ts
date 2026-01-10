@@ -56,6 +56,11 @@ export async function handleApiRequest(
     return handlePollDecision(request, env, requestId);
   }
 
+  // GET /api/requests/pending - list pending requests (called by PWA)
+  if (path === '/requests/pending' && request.method === 'GET') {
+    return handleListPending(request, env);
+  }
+
   return jsonResponse({ success: false, error: 'Not found' }, 404);
 }
 
@@ -162,9 +167,12 @@ async function handleCreateRequest(
 
   // Get push subscription and send notification
   const deviceResp = await deviceDO.fetch(new Request('http://internal/get'));
+  console.log('Device response status:', deviceResp.status);
   if (deviceResp.ok) {
     const deviceData = await deviceResp.json() as { pushSubscription?: PushSubscriptionData };
+    console.log('Has push subscription:', !!deviceData.pushSubscription);
     if (deviceData.pushSubscription) {
+      console.log('Push endpoint:', deviceData.pushSubscription.endpoint);
       // Send push notification in background
       ctx.waitUntil(
         sendPushNotification(
@@ -172,16 +180,24 @@ async function handleCreateRequest(
           {
             title: 'Claude needs approval',
             body: `${data.payload.tool}: ${data.payload.command || data.payload.details || 'Action required'}`,
-            data: { requestId: data.requestId },
+            data: { requestId: data.requestId, pairingId: data.pairingId },
             tag: data.requestId,
             requireInteraction: true,
+            actions: [
+              { action: 'approve', title: '✅ Approve' },
+              { action: 'deny', title: '❌ Deny' },
+            ],
           },
           {
             publicKey: env.VAPID_PUBLIC_KEY,
             privateKey: env.VAPID_PRIVATE_KEY,
             subject: env.VAPID_SUBJECT,
           }
-        )
+        ).then(result => {
+          console.log('Push result:', JSON.stringify(result));
+        }).catch(err => {
+          console.error('Push error:', err);
+        })
       );
     }
   }
@@ -277,6 +293,11 @@ async function handlePollDecision(
   const requestsDO = env.APPROVAL_REQUESTS.get(requestsId);
 
   const resp = await requestsDO.fetch(new Request(`http://internal/get/${requestId}`));
+
+  if (resp.status === 404) {
+    return jsonResponse({ success: true, data: { status: 'expired' } });
+  }
+
   const data = await resp.json();
 
   if (!resp.ok) {
@@ -320,8 +341,15 @@ async function validateSignedRequest(
     return { valid: false, error: nonceResult.error || 'Invalid nonce' };
   }
 
-  // Verify signature
-  const bodyHash = body ? await hashBody(body) : await hashBody('');
+  // Verify signature - exclude signature field from body hash
+  let bodyForHash = body;
+  if (body) {
+    // Remove signature from body before hashing (signature was computed on body without signature)
+    const bodyObj = JSON.parse(body);
+    const { signature: _, ...bodyWithoutSig } = bodyObj;
+    bodyForHash = JSON.stringify({ ...bodyWithoutSig, signature: '' });
+  }
+  const bodyHash = bodyForHash ? await hashBody(bodyForHash) : await hashBody('');
   const canonicalString = buildCanonicalString(method, path, bodyHash, data.ts, data.nonce);
 
   const isValid = await verifySignature(deviceData.pairingSecret, canonicalString, data.signature);
@@ -330,6 +358,26 @@ async function validateSignedRequest(
   }
 
   return { valid: true };
+}
+
+async function handleListPending(
+  request: Request,
+  env: Env
+): Promise<Response> {
+  const url = new URL(request.url);
+  const pairingId = url.searchParams.get('pairingId');
+
+  if (!pairingId) {
+    return jsonResponse({ success: false, error: 'pairingId required' }, 400);
+  }
+
+  const requestsId = env.APPROVAL_REQUESTS.idFromName(pairingId);
+  const requestsDO = env.APPROVAL_REQUESTS.get(requestsId);
+
+  const resp = await requestsDO.fetch(new Request('http://internal/list-pending'));
+  const data = await resp.json() as { requests: unknown[] };
+
+  return jsonResponse({ success: true, data: data.requests });
 }
 
 function jsonResponse(data: ApiResponse, status = 200): Response {

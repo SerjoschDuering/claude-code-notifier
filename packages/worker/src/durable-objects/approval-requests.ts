@@ -8,13 +8,30 @@ import { REQUEST_TTL_SECONDS, MAX_PENDING_REQUESTS } from '@claude-notifier/shar
 export class ApprovalRequestsDO implements DurableObject {
   private state: DurableObjectState;
   private requests: Map<string, ApprovalRequest> = new Map();
+  private pendingRequestIds: Set<string> = new Set();
 
   constructor(state: DurableObjectState) {
     this.state = state;
     this.state.blockConcurrencyWhile(async () => {
-      const stored = await this.state.storage.get('requests');
-      if (stored) {
-        this.requests = new Map(Object.entries(stored as Record<string, ApprovalRequest>));
+      const legacy = await this.state.storage.get<Record<string, ApprovalRequest>>('requests');
+      if (legacy) {
+        const writes: Promise<unknown>[] = [];
+        for (const [id, req] of Object.entries(legacy)) {
+          writes.push(this.state.storage.put(this.getRequestStorageKey(id), req));
+        }
+        if (writes.length) {
+          await Promise.all(writes);
+        }
+        await this.state.storage.delete('requests');
+      }
+
+      const stored = await this.state.storage.list<ApprovalRequest>({ prefix: 'request:' });
+      for (const [storageKey, req] of stored.entries()) {
+        const id = storageKey.replace('request:', '');
+        this.requests.set(id, req);
+        if (req.status === 'pending') {
+          this.pendingRequestIds.add(id);
+        }
       }
     });
   }
@@ -41,6 +58,9 @@ export class ApprovalRequestsDO implements DurableObject {
       if (path === '/pending-count' && request.method === 'GET') {
         return this.handlePendingCount();
       }
+      if (path === '/list-pending' && request.method === 'GET') {
+        return this.handleListPending();
+      }
 
       return new Response('Not Found', { status: 404 });
     } catch (error) {
@@ -51,17 +71,18 @@ export class ApprovalRequestsDO implements DurableObject {
 
   private async cleanupExpired(): Promise<void> {
     const now = Date.now();
-    let changed = false;
+    const deleteKeys: string[] = [];
 
     for (const [id, req] of this.requests.entries()) {
       if (req.status === 'pending' && now > req.expiresAt) {
-        req.status = 'expired';
-        changed = true;
+        this.requests.delete(id);
+        this.pendingRequestIds.delete(id);
+        deleteKeys.push(this.getRequestStorageKey(id));
       }
     }
 
-    if (changed) {
-      await this.saveRequests();
+    if (deleteKeys.length) {
+      await this.state.storage.delete(deleteKeys);
     }
   }
 
@@ -92,7 +113,8 @@ export class ApprovalRequestsDO implements DurableObject {
     };
 
     this.requests.set(data.requestId, approvalRequest);
-    await this.saveRequests();
+    this.pendingRequestIds.add(data.requestId);
+    await this.persistRequest(approvalRequest);
 
     return new Response(JSON.stringify({ success: true, request: approvalRequest }), {
       headers: { 'Content-Type': 'application/json' },
@@ -103,7 +125,7 @@ export class ApprovalRequestsDO implements DurableObject {
     const req = this.requests.get(requestId);
 
     if (!req) {
-      return new Response(JSON.stringify({ error: 'Request not found' }), {
+      return new Response(JSON.stringify({ error: 'Request not found or expired' }), {
         status: 404,
         headers: { 'Content-Type': 'application/json' },
       });
@@ -120,7 +142,7 @@ export class ApprovalRequestsDO implements DurableObject {
     const req = this.requests.get(requestId);
 
     if (!req) {
-      return new Response(JSON.stringify({ error: 'Request not found' }), {
+      return new Response(JSON.stringify({ error: 'Request not found or expired' }), {
         status: 404,
         headers: { 'Content-Type': 'application/json' },
       });
@@ -134,7 +156,8 @@ export class ApprovalRequestsDO implements DurableObject {
     }
 
     req.status = decision === 'allow' ? 'allowed' : 'denied';
-    await this.saveRequests();
+    this.pendingRequestIds.delete(requestId);
+    await this.persistRequest(req);
 
     return new Response(JSON.stringify({ success: true, status: req.status }), {
       headers: { 'Content-Type': 'application/json' },
@@ -147,19 +170,29 @@ export class ApprovalRequestsDO implements DurableObject {
     });
   }
 
-  private getPendingCount(): number {
-    let count = 0;
+  private handleListPending(): Response {
+    const pending: ApprovalRequest[] = [];
     for (const req of this.requests.values()) {
-      if (req.status === 'pending') count++;
+      if (req.status === 'pending') {
+        pending.push(req);
+      }
     }
-    return count;
+    // Sort by creation time, newest first
+    pending.sort((a, b) => b.createdAt - a.createdAt);
+    return new Response(JSON.stringify({ requests: pending }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 
-  private async saveRequests(): Promise<void> {
-    const obj: Record<string, ApprovalRequest> = {};
-    for (const [id, req] of this.requests.entries()) {
-      obj[id] = req;
-    }
-    await this.state.storage.put('requests', obj);
+  private getPendingCount(): number {
+    return this.pendingRequestIds.size;
+  }
+
+  private getRequestStorageKey(requestId: string): string {
+    return `request:${requestId}`;
+  }
+
+  private persistRequest(request: ApprovalRequest): Promise<void> {
+    return this.state.storage.put(this.getRequestStorageKey(request.requestId), request);
   }
 }
