@@ -19,8 +19,26 @@
       <div class="header-text">
         <h1>Claude Code Approver</h1>
       </div>
-      <button id="settings-btn" class="header-btn hidden" title="Settings">⚙️</button>
+      <div class="header-actions">
+        <button id="info-btn" class="header-btn" title="How it works">ℹ️</button>
+        <button id="settings-btn" class="header-btn hidden" title="Settings">⚙️</button>
+      </div>
     </header>
+
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="hero-tag">Remote approvals for Claude Code</p>
+        <h2>Approve from anywhere</h2>
+        <p>Send every Claude Code permission request to your phone, review the context, and tap Approve or Deny in seconds.</p>
+        <div class="hero-actions">
+          <a href="/pair.html" class="button primary hero-primary">Pair Device</a>
+          <button id="info-btn-secondary" class="button secondary">How it works</button>
+        </div>
+      </div>
+      <div class="hero-art">
+        <img src="/assets/cc-approval-b.jpg" alt="Claude Code remote approval illustration">
+      </div>
+    </section>
 
     <!-- Settings Modal -->
     <div id="settings-modal" class="modal hidden">
@@ -45,6 +63,30 @@
           <div class="settings-actions">
             <button id="test-notification" class="settings-btn">🔔 Test Notification</button>
             <button id="unpair" class="settings-btn danger">Unpair Device</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Info Modal -->
+    <div id="info-modal" class="modal hidden">
+      <div class="modal-backdrop"></div>
+      <div class="modal-content info-modal-content">
+        <div class="modal-header">
+          <h2>Privacy & How It Works</h2>
+          <button class="modal-close" id="close-info">✕</button>
+        </div>
+        <div class="modal-body info-modal-body">
+          <img src="/assets/cc-approval-a.png" alt="Claude approval loop" class="info-illustration">
+          <p>Your requests flow directly from Claude Code → your Worker → your phone. The Worker only stores pending requests for 60 seconds and deletes them automatically.</p>
+          <ul class="info-list">
+            <li>No third-party servers beyond your Cloudflare account.</li>
+            <li>HMAC-signed requests with nonce + timestamp verification.</li>
+            <li>Maximum of 2,000 concurrent pending approvals per pairing.</li>
+          </ul>
+          <div class="info-privacy-card">
+            <h3>Privacy commitments</h3>
+            <p>Requests live in Durable Object memory only long enough for you to act. No analytics, no tracking pixels, and you control the entire deployment.</p>
           </div>
         </div>
       </div>

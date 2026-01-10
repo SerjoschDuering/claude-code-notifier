@@ -33,6 +33,11 @@ async function init() {
   const settingsModal = document.getElementById('settings-modal')!;
   const closeSettings = document.getElementById('close-settings')!;
   const modalBackdrop = settingsModal.querySelector('.modal-backdrop')!;
+  const infoBtn = document.getElementById('info-btn');
+  const infoBtnSecondary = document.getElementById('info-btn-secondary');
+  const infoModal = document.getElementById('info-modal');
+  const closeInfo = document.getElementById('close-info');
+  const infoBackdrop = infoModal?.querySelector('.modal-backdrop');
 
   statusDot.classList.add('connected');
   statusText.textContent = 'Connected';
@@ -44,6 +49,12 @@ async function init() {
   settingsBtn.addEventListener('click', () => settingsModal.classList.remove('hidden'));
   closeSettings.addEventListener('click', () => settingsModal.classList.add('hidden'));
   modalBackdrop.addEventListener('click', () => settingsModal.classList.add('hidden'));
+
+  const openInfoModal = () => infoModal?.classList.remove('hidden');
+  infoBtn?.addEventListener('click', openInfoModal);
+  infoBtnSecondary?.addEventListener('click', openInfoModal);
+  closeInfo?.addEventListener('click', () => infoModal?.classList.add('hidden'));
+  infoBackdrop?.addEventListener('click', () => infoModal?.classList.add('hidden'));
 
   // Check push permission
   if ('Notification' in window && Notification.permission !== 'granted') {

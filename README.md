@@ -2,6 +2,8 @@
 
 **Approve Claude Code permission requests from your iPhone via push notifications.**
 
+![Claude Code remote approval](assets/cc-approval-b.jpg)
+
 When Claude Code wants to run a command, write a file, or perform other actions, you get a push notification on your phone. Tap to review, approve or deny - all without leaving your couch.
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
@@ -35,97 +37,71 @@ When Claude Code wants to run a command, write a file, or perform other actions,
 
 - Node.js 18+
 - pnpm (`npm install -g pnpm`)
-- Cloudflare account (free)
-- iPhone with iOS 16.4+
+- Cloudflare account (free tier works)
+- iPhone with iOS 16.4+ (must add the PWA to Home Screen for push)
+
+## Step-by-Step Install
 
 ### 1. Clone & Install
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/claude-code-notifier.git
+git clone https://github.com/SerjoschDuering/claude-code-notifier.git
 cd claude-code-notifier
 pnpm install
 ```
 
-### 2. Setup Cloudflare
+> Tip: keep the folder somewhere permanent (for example `~/ClaudeCodeNotifyer`) so the CLI + hook can always find it.
+
+### 2. Deploy the Worker (Cloudflare)
 
 ```bash
-# Install Wrangler CLI
-npm install -g wrangler
-
-# Login to Cloudflare
+npm install -g wrangler web-push
 wrangler login
 
-# Generate VAPID keys for push notifications
-npm install -g web-push
+# Generate VAPID keys once and store them somewhere safe
 web-push generate-vapid-keys
-```
 
-Save the output - you'll need both keys.
-
-### 3. Deploy Worker
-
-```bash
 cd packages/worker
-
-# Set secrets (paste when prompted)
 wrangler secret put VAPID_PUBLIC_KEY
 wrangler secret put VAPID_PRIVATE_KEY
-wrangler secret put VAPID_SUBJECT  # e.g., mailto:you@example.com
-
-# Deploy
+wrangler secret put VAPID_SUBJECT   # e.g. mailto:you@example.com
 wrangler deploy
 ```
 
-Note your Worker URL: `https://claude-code-notifier.YOUR_SUBDOMAIN.workers.dev`
+The deploy step prints your Worker URL (for example `https://claude-code-notifier.YOUR_SUBDOMAIN.workers.dev`). You will reuse it everywhere.
 
-### 4. Deploy PWA
+### 3. Deploy the PWA (Cloudflare Pages)
 
 ```bash
 cd packages/pwa
-
-# Set your Worker URL
 echo "VITE_API_URL=https://claude-code-notifier.YOUR_SUBDOMAIN.workers.dev/api" > .env
-
-# Build and deploy
 pnpm build
-cp public/* dist/
-wrangler pages project create claude-approver --production-branch main
 wrangler pages deploy dist --project-name=claude-approver
 ```
 
-Your PWA: `https://claude-approver.pages.dev`
+Visit the Pages URL in Safari and “Add to Home Screen”.
 
-### 5. Pair Your iPhone
+### 4. Pair Your Phone
 
 ```bash
 cd packages/cli
 pnpm start init --server https://claude-code-notifier.YOUR_SUBDOMAIN.workers.dev
 ```
 
-Or set the environment variable:
-```bash
-export CLAUDE_NOTIFIER_SERVER=https://claude-code-notifier.YOUR_SUBDOMAIN.workers.dev
-pnpm start init
-```
+Point the iPhone camera at the QR code (or type the pairing ID + secret), then tap **Enable notifications**.
 
-Then on your iPhone:
-1. Open your PWA URL in Safari
-2. Tap Share → "Add to Home Screen"
-3. Open from Home Screen (required for push!)
-4. Tap "Pair Device"
-5. Enter the pairing credentials or scan QR
-6. Allow notifications
+### 5. Install the Claude Code Hook
 
-### 6. Install Claude Code Hook
-
-Add to `~/.claude/settings.json`:
+1. Install `jq` (`brew install jq` on macOS, `sudo apt install jq` on Linux).
+2. Make the hook executable: `chmod +x /path/to/claude-code-notifier/hook/approve-hook.sh`
+3. Add it to `~/.claude/settings.json`:
 
 ```json
 {
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash",
+        "matcher": "Bash|Write|Edit",
         "hooks": [
           {
             "type": "command",
@@ -138,20 +114,45 @@ Add to `~/.claude/settings.json`:
 }
 ```
 
-Make the hook executable:
+#### Copy/Paste installer for Claude Code
+
+Set your Worker URL and paste this block into Claude Code’s terminal to let it do the rest:
+
 ```bash
-chmod +x /path/to/claude-code-notifier/hook/approve-hook.sh
+WORKER_URL="https://claude-code-notifier.YOUR_SUBDOMAIN.workers.dev"
+APP_DIR="$HOME/ClaudeCodeNotifyer"
+
+set -euo pipefail
+
+if [ ! -d "$APP_DIR" ]; then
+  git clone https://github.com/SerjoschDuering/claude-code-notifier.git "$APP_DIR"
+fi
+
+cd "$APP_DIR"
+pnpm install
+pnpm --filter cli start init --server "$WORKER_URL"
+chmod +x hook/approve-hook.sh
+
+cat <<JSON > ~/.claude/settings.json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash $APP_DIR/hook/approve-hook.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
+JSON
+
+echo "All set! Claude Code will request approvals via $WORKER_URL"
 ```
-
-**Note:** The hook script requires `jq` for JSON parsing:
-```bash
-# macOS
-brew install jq
-
-# Ubuntu/Debian
-sudo apt install jq
-```
-
 ## Hook Configuration
 
 The hook intercepts Claude Code tool calls and sends them for approval.
