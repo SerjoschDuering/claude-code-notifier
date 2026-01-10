@@ -3,7 +3,8 @@ import { getPairingData, clearPairingData } from './storage';
 import { API_BASE, getVapidPublicKey, registerPushSubscription, getPendingRequests, submitDecision } from './api';
 
 async function init() {
-  setupGuides();
+  setupInstallGuide();
+  setupTipPopover();
 
   // Register service worker
   if ('serviceWorker' in navigator) {
@@ -25,8 +26,19 @@ async function init() {
   const pairingIdDisplay = document.getElementById('pairing-id-display')!;
 
   if (!pairingData) {
-    // Not paired
+    // Not paired - show onboarding
     notPairedSection.classList.remove('hidden');
+    
+    // Setup install guide button
+    const installGuideBtn = document.getElementById('install-guide-btn');
+    const installModal = document.getElementById('install-modal');
+    const closeInstall = document.getElementById('close-install');
+    const installBackdrop = installModal?.querySelector('.modal-backdrop');
+    
+    installGuideBtn?.addEventListener('click', () => installModal?.classList.remove('hidden'));
+    closeInstall?.addEventListener('click', () => installModal?.classList.add('hidden'));
+    installBackdrop?.addEventListener('click', () => installModal?.classList.add('hidden'));
+    
     return;
   }
 
@@ -105,23 +117,27 @@ async function init() {
   setInterval(() => loadPendingRequests(pairingData), 5000);
 }
 
-function setupGuides() {
-  const snippetEl = document.getElementById('installer-snippet');
-  const scriptCopyBtn = document.getElementById('copy-installer');
-  const cliEl = document.getElementById('cli-command');
-  const cliCopyBtn = document.getElementById('copy-cli');
-
-  if (!snippetEl || !scriptCopyBtn || !cliEl || !cliCopyBtn) return;
-
+function setupInstallGuide() {
   const workerUrl = deriveWorkerUrl();
-  const cliCommand = buildCliCommand(workerUrl);
-  const script = buildInstallerScript(workerUrl);
+  const pwaUrl = window.location.origin;
+  const setupPrompt = buildSetupPrompt(workerUrl, pwaUrl);
 
-  cliEl.textContent = cliCommand;
-  snippetEl.textContent = script;
+  // Populate modal with setup prompt
+  const setupPromptEl = document.getElementById('setup-prompt-modal');
+  const setupPromptCopyBtn = document.getElementById('copy-setup-prompt');
+  const togglePreviewBtn = document.getElementById('toggle-prompt-preview');
+  const promptPreview = document.getElementById('prompt-preview');
 
-  setupCopyButton(cliCopyBtn, cliCommand);
-  setupCopyButton(scriptCopyBtn, script);
+  if (setupPromptEl) setupPromptEl.textContent = setupPrompt;
+  if (setupPromptCopyBtn) setupCopyButton(setupPromptCopyBtn, setupPrompt);
+
+  // Toggle prompt preview
+  if (togglePreviewBtn && promptPreview) {
+    togglePreviewBtn.addEventListener('click', () => {
+      const isCollapsed = promptPreview.classList.toggle('collapsed');
+      togglePreviewBtn.textContent = isCollapsed ? '👁️ Preview' : '✖️ Hide';
+    });
+  }
 }
 
 function setupCopyButton(button: HTMLElement, text: string) {
@@ -150,46 +166,68 @@ function deriveWorkerUrl(): string {
   }
 }
 
-function buildCliCommand(workerUrl: string): string {
-  const sanitizedUrl = workerUrl || 'https://claude-code-notifier.YOUR_SUBDOMAIN.workers.dev';
-  return `pnpm --filter cli start init --server ${sanitizedUrl}`;
-}
+function buildSetupPrompt(workerUrl: string, pwaUrl: string): string {
+  const sanitizedWorkerUrl = workerUrl || 'https://claude-code-notifier.YOUR_SUBDOMAIN.workers.dev';
+  const sanitizedPwaUrl = pwaUrl || 'https://claude-approver.pages.dev';
+  
+  return `I want to install Claude Code Approver so I can approve your actions from my iPhone via push notifications.
 
-function buildInstallerScript(workerUrl: string): string {
-  const sanitizedUrl = workerUrl || 'https://claude-code-notifier.YOUR_SUBDOMAIN.workers.dev';
-  return `WORKER_URL="${sanitizedUrl}"
-APP_DIR="$HOME/ClaudeCodeNotifyer"
+Please help me set this up by following these steps:
 
-set -euo pipefail
+1. **Generate Pairing Credentials**
+   - Run: npx claude-code-approver@latest init --server ${sanitizedWorkerUrl}
+   - This will display a QR code and pairing credentials
+   - Tell me to keep this terminal open and proceed to step 2
 
-if [ ! -d "$APP_DIR" ]; then
-  git clone https://github.com/SerjoschDuering/claude-code-notifier.git "$APP_DIR"
-fi
+2. **Create Hook Script**
+   - Create file at: ~/.claude-approve-hook.sh
+   - The hook script should:
+     * Read JSON from stdin containing tool_name and tool_input
+     * Read config from ~/.claude-approve/config.json (created by step 1)
+     * Send approval request to the server with the pairing credentials
+     * Poll for decision (approve/deny) for up to 60 seconds
+     * Output JSON: {"decision": "approve"} or {"decision": "deny"}
+     * Use bash and standard tools (curl, jq)
+     * Fail open (approve) if any errors occur
+   - Make it executable: chmod +x ~/.claude-approve-hook.sh
 
-cd "$APP_DIR"
-pnpm install
-pnpm --filter cli start init --server "$WORKER_URL"
-chmod +x hook/approve-hook.sh
+3. **Configure Claude Code Settings**
+   - Update or create ~/.claude/settings.json
+   - Add this hook configuration:
+     {
+       "hooks": {
+         "PreToolUse": [
+           {
+             "matcher": "Bash|Write|Edit",
+             "hooks": [
+               {
+                 "type": "command",
+                 "command": "$HOME/.claude-approve-hook.sh"
+               }
+             ]
+           }
+         ]
+       }
+     }
+   - If settings.json already exists, merge the hooks section carefully
 
-cat <<JSON > ~/.claude/settings.json
-{
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash|Write|Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash $APP_DIR/hook/approve-hook.sh"
-          }
-        ]
-      }
-    ]
-  }
-}
-JSON
+4. **Show iPhone Setup Instructions**
+   - Display clear instructions for:
+     * Opening ${sanitizedPwaUrl} in Safari on iPhone
+     * Adding to Home Screen (Share → Add to Home Screen)
+     * Opening the app FROM Home Screen (critical for notifications)
+     * Tapping "Pair Device" and scanning the QR code from step 1
+     * Enabling push notifications when prompted
 
-echo "All set! Claude Code will request approvals via $WORKER_URL"`;
+5. **Test the Setup**
+   - After I confirm the iPhone is paired, ask if I want you to test it
+   - Try running a simple command like "ls" that will trigger an approval request
+   - I should see it on my iPhone
+
+Please proceed step by step, showing me what you're doing and waiting for my confirmation before moving to the next step.
+
+Server URL: ${sanitizedWorkerUrl}
+PWA URL: ${sanitizedPwaUrl}`;
 }
 
 async function loadPendingRequests(pairingData: { pairingId: string; pairingSecret: string }) {
@@ -435,6 +473,68 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
     outputArray[i] = rawData.charCodeAt(i);
   }
   return outputArray;
+}
+
+function setupTipPopover() {
+  // Get Stripe links from environment variables (optional)
+  const stripeLinks = {
+    small: import.meta.env.VITE_STRIPE_LINK_SMALL || '',
+    custom: import.meta.env.VITE_STRIPE_LINK_CUSTOM || ''
+  };
+
+  // If no Stripe links configured, hide tip button and return
+  if (!stripeLinks.small && !stripeLinks.custom) {
+    const floatingActions = document.querySelector('.floating-actions');
+    if (floatingActions) {
+      (floatingActions as HTMLElement).style.display = 'none';
+    }
+    return;
+  }
+
+  const tipPopover = document.getElementById('tipPopover');
+  const floatingTip = document.getElementById('floatingTip');
+  const closeTipPopoverBtn = document.getElementById('closeTipPopover');
+
+  // Toggle popover on button click
+  floatingTip?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    tipPopover?.classList.toggle('open');
+  });
+
+  // Close popover
+  closeTipPopoverBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    tipPopover?.classList.remove('open');
+  });
+
+  // Handle tip option clicks
+  document.querySelectorAll('.tip-option').forEach((option) => {
+    option.addEventListener('click', (e) => {
+      e.preventDefault();
+      const tier = (option as HTMLElement).dataset.tier as 'small' | 'custom';
+      if (tier && stripeLinks[tier]) {
+        window.open(stripeLinks[tier], '_blank');
+        tipPopover?.classList.remove('open');
+      }
+    });
+  });
+
+  // Close on Escape key
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && tipPopover?.classList.contains('open')) {
+      tipPopover.classList.remove('open');
+    }
+  });
+
+  // Close on click outside
+  document.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement;
+    if (tipPopover?.classList.contains('open') &&
+        !tipPopover.contains(target) &&
+        !floatingTip?.contains(target)) {
+      tipPopover.classList.remove('open');
+    }
+  });
 }
 
 init();

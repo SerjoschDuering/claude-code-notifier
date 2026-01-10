@@ -1,11 +1,30 @@
 {
-  "name": "@claude-notifier/cli",
+  "name": "claude-code-approver",
   "version": "0.1.0",
-  "private": true,
+  "description": "CLI for pairing Claude Code with remote approval system",
   "type": "module",
   "bin": {
+    "claude-code-approver": "./dist/index.js",
     "claude-approve": "./dist/index.js"
   },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "keywords": [
+    "claude",
+    "claude-code",
+    "approval",
+    "notifications",
+    "cli"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SerjoschDuering/claude-code-notifier.git",
+    "directory": "packages/cli"
+  },
+  "author": "Serjosch Duering",
+  "license": "MIT",
   "scripts": {
     "build": "tsc",
     "start": "tsx src/index.ts",

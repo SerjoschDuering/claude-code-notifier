@@ -79,7 +79,31 @@ pnpm build
 wrangler pages deploy dist --project-name=claude-approver
 ```
 
-Visit the Pages URL in Safari and “Add to Home Screen”.
+Visit the Pages URL in Safari and "Add to Home Screen".
+
+#### Optional: Enable Tip Button
+
+If you want to add a support tip button (completely optional):
+
+1. Create Stripe Payment Links at https://dashboard.stripe.com/payment-links
+2. Add them to your `.env` file:
+
+```bash
+cd packages/pwa
+cat >> .env << 'EOF'
+VITE_STRIPE_LINK_SMALL=https://buy.stripe.com/YOUR_SMALL_LINK
+VITE_STRIPE_LINK_CUSTOM=https://buy.stripe.com/YOUR_CUSTOM_LINK
+EOF
+```
+
+3. Rebuild and redeploy:
+
+```bash
+pnpm build
+wrangler pages deploy dist --project-name=claude-approver
+```
+
+If these variables are not set, the tip button will be automatically hidden.
 
 ### 4. Pair Your Phone
 
