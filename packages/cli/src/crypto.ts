@@ -1,4 +1,4 @@
-import { createHmac, randomBytes } from 'crypto';
+import { createHmac, createHash, randomBytes } from 'crypto';
 
 export function generateNonce(): string {
   return randomBytes(16).toString('base64');
@@ -13,12 +13,7 @@ export function generateSecret(): string {
 }
 
 export function hashBody(body: string): string {
-  const hash = createHmac('sha256', '');
-  hash.update(body);
-  // Actually use createHash for body hash
-  const { createHash } = require('crypto');
-  const bodyHash = createHash('sha256').update(body).digest('base64');
-  return bodyHash;
+  return createHash('sha256').update(body).digest('base64');
 }
 
 export function buildCanonicalString(

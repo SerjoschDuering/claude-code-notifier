@@ -16,45 +16,70 @@
   <div class="container">
     <header>
       <div class="logo">⚡</div>
-      <h1>Claude Code Approver</h1>
-      <p class="subtitle">Approve permissions from your phone</p>
+      <div class="header-text">
+        <h1>Claude Code Approver</h1>
+      </div>
+      <button id="settings-btn" class="header-btn hidden" title="Settings">⚙️</button>
     </header>
 
-    <main id="main-content">
-      <div id="status-section" class="card">
-        <h2>Status</h2>
-        <div id="connection-status" class="status-indicator">
-          <span class="status-dot"></span>
-          <span class="status-text">Checking...</span>
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="modal hidden">
+      <div class="modal-backdrop"></div>
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>Settings</h2>
+          <button class="modal-close" id="close-settings">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="settings-row">
+            <span class="settings-label">Status</span>
+            <span class="settings-value">
+              <span class="status-dot connected" id="status-dot"></span>
+              <span id="status-text">Connected</span>
+            </span>
+          </div>
+          <div class="settings-row">
+            <span class="settings-label">Pairing ID</span>
+            <code id="pairing-id-display">—</code>
+          </div>
+          <div class="settings-actions">
+            <button id="test-notification" class="settings-btn">🔔 Test Notification</button>
+            <button id="unpair" class="settings-btn danger">Unpair Device</button>
+          </div>
         </div>
       </div>
+    </div>
 
+    <main id="main-content">
+      <!-- Not Paired -->
       <div id="not-paired" class="card hidden">
         <h2>Get Started</h2>
         <p>Pair your device with Claude Code to receive approval requests.</p>
         <a href="/pair.html" class="button primary">Pair Device</a>
       </div>
 
-      <div id="paired" class="card hidden">
-        <h2>Ready</h2>
-        <p>Your device is paired and ready to receive approval requests.</p>
-        <div id="pairing-info">
-          <small>Pairing ID: <code id="pairing-id-display">—</code></small>
+      <!-- Paired View -->
+      <div id="paired-view" class="paired-view hidden">
+        <!-- Push Permission (compact banner) -->
+        <div id="push-permission" class="push-banner hidden">
+          <span class="push-text">🔔 Enable push notifications</span>
+          <button id="enable-push" class="push-btn">Enable</button>
         </div>
-        <button id="test-notification" class="button secondary">Test Notification</button>
-        <button id="unpair" class="button danger">Unpair Device</button>
-      </div>
 
-      <div id="push-permission" class="card hidden">
-        <h2>Enable Notifications</h2>
-        <p>Allow notifications to receive approval requests instantly.</p>
-        <button id="enable-push" class="button primary">Enable Notifications</button>
+        <!-- Pending Requests - scrollable area -->
+        <div id="pending-requests" class="pending-section">
+          <div class="pending-header">
+            <h2>Pending Requests</h2>
+            <button id="refresh-requests" class="refresh-btn" title="Refresh">↻</button>
+          </div>
+          <div id="requests-list" class="requests-scroll">
+            <p class="no-requests">No pending requests</p>
+          </div>
+        </div>
+
       </div>
     </main>
 
-    <footer>
-      <p>Add to Home Screen for best experience</p>
-    </footer>
   </div>
 
   <script type="module" src="/src/main.ts"></script>

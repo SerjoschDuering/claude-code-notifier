@@ -153,6 +153,31 @@ export async function getRequest(
   return response.json();
 }
 
+export async function getPendingRequests(
+  params: SignedRequestParams
+): Promise<{
+  success: boolean;
+  data?: Array<{
+    requestId: string;
+    payload: {
+      tool: string;
+      command?: string;
+      args?: string[];
+      cwd?: string;
+      details?: string;
+    };
+    status: string;
+    createdAt: number;
+    expiresAt: number;
+  }>;
+  error?: string;
+}> {
+  const response = await fetch(
+    `${API_BASE}/requests/pending?pairingId=${params.pairingId}`
+  );
+  return response.json();
+}
+
 export async function submitDecision(
   params: SignedRequestParams,
   requestId: string,

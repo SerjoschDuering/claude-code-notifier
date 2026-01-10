@@ -167,12 +167,9 @@ async function handleCreateRequest(
 
   // Get push subscription and send notification
   const deviceResp = await deviceDO.fetch(new Request('http://internal/get'));
-  console.log('Device response status:', deviceResp.status);
   if (deviceResp.ok) {
     const deviceData = await deviceResp.json() as { pushSubscription?: PushSubscriptionData };
-    console.log('Has push subscription:', !!deviceData.pushSubscription);
     if (deviceData.pushSubscription) {
-      console.log('Push endpoint:', deviceData.pushSubscription.endpoint);
       // Send push notification in background
       ctx.waitUntil(
         sendPushNotification(
@@ -193,9 +190,7 @@ async function handleCreateRequest(
             privateKey: env.VAPID_PRIVATE_KEY,
             subject: env.VAPID_SUBJECT,
           }
-        ).then(result => {
-          console.log('Push result:', JSON.stringify(result));
-        }).catch(err => {
+        ).catch(err => {
           console.error('Push error:', err);
         })
       );
