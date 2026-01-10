@@ -3,7 +3,7 @@ import { getPairingData, clearPairingData } from './storage';
 import { API_BASE, getVapidPublicKey, registerPushSubscription, getPendingRequests, submitDecision } from './api';
 
 async function init() {
-  setupInstallerSnippet();
+  setupGuides();
 
   // Register service worker
   if ('serviceWorker' in navigator) {
@@ -105,24 +105,35 @@ async function init() {
   setInterval(() => loadPendingRequests(pairingData), 5000);
 }
 
-function setupInstallerSnippet() {
+function setupGuides() {
   const snippetEl = document.getElementById('installer-snippet');
-  const copyBtn = document.getElementById('copy-installer');
-  if (!snippetEl || !copyBtn) return;
+  const scriptCopyBtn = document.getElementById('copy-installer');
+  const cliEl = document.getElementById('cli-command');
+  const cliCopyBtn = document.getElementById('copy-cli');
+
+  if (!snippetEl || !scriptCopyBtn || !cliEl || !cliCopyBtn) return;
 
   const workerUrl = deriveWorkerUrl();
+  const cliCommand = buildCliCommand(workerUrl);
   const script = buildInstallerScript(workerUrl);
+
+  cliEl.textContent = cliCommand;
   snippetEl.textContent = script;
 
-  copyBtn.addEventListener('click', async () => {
+  setupCopyButton(cliCopyBtn, cliCommand);
+  setupCopyButton(scriptCopyBtn, script);
+}
+
+function setupCopyButton(button: HTMLElement, text: string) {
+  button.addEventListener('click', async () => {
     try {
-      await navigator.clipboard.writeText(script);
-      copyBtn.textContent = 'Copied!';
-      setTimeout(() => { copyBtn.textContent = 'Copy'; }, 2000);
+      await navigator.clipboard.writeText(text);
+      button.textContent = 'Copied!';
+      setTimeout(() => { button.textContent = 'Copy'; }, 2000);
     } catch (error) {
       console.error('Copy failed:', error);
-      copyBtn.textContent = 'Copy failed';
-      setTimeout(() => { copyBtn.textContent = 'Copy'; }, 2000);
+      button.textContent = 'Copy failed';
+      setTimeout(() => { button.textContent = 'Copy'; }, 2000);
     }
   });
 }
@@ -137,6 +148,11 @@ function deriveWorkerUrl(): string {
   } catch {
     return API_BASE.replace(/\/api$/, '');
   }
+}
+
+function buildCliCommand(workerUrl: string): string {
+  const sanitizedUrl = workerUrl || 'https://claude-code-notifier.YOUR_SUBDOMAIN.workers.dev';
+  return `pnpm --filter cli start init --server ${sanitizedUrl}`;
 }
 
 function buildInstallerScript(workerUrl: string): string {

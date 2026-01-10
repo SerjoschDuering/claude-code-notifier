@@ -41,17 +41,23 @@
     </section>
 
     <section class="guide">
-      <h2>Setup overview</h2>
+      <h2>Pair & install the hook</h2>
       <ol>
-        <li>Deploy the Cloudflare Worker (includes Durable Objects + push secrets).</li>
-        <li>Deploy this PWA on Cloudflare Pages and add it to your iPhone Home Screen.</li>
-        <li>Pair your phone via the CLI QR code.</li>
-        <li>Install the Claude Code hook so every Bash/Write/Edit request pauses for approval.</li>
+        <li>Open this app on your iPhone, tap <strong>Pair Device</strong>, and enable push notifications.</li>
+        <li>Run the CLI command below on your laptop to register the pairing with Claude Code.</li>
+        <li>Paste the Claude installer script into Claude Code’s terminal to add the approval hook.</li>
       </ol>
-      <p class="guide-note">Need the full walkthrough? <a href="https://github.com/SerjoschDuering/claude-code-notifier#step-by-step-install" target="_blank" rel="noopener">Read the README install guide</a>.</p>
+      <p class="guide-note">Already have a pairing? Skip to the Claude script to reinstall the hook. Full instructions live in the <a href="https://github.com/SerjoschDuering/claude-code-notifier#step-by-step-install" target="_blank" rel="noopener">README</a>.</p>
       <div class="guide-script">
         <div class="guide-script-header">
-          <span>Copy-ready Claude install script</span>
+          <span>CLI pairing command</span>
+          <button id="copy-cli" class="button secondary">Copy</button>
+        </div>
+        <pre><code id="cli-command"></code></pre>
+      </div>
+      <div class="guide-script">
+        <div class="guide-script-header">
+          <span>Claude Code auto-install script</span>
           <button id="copy-installer" class="button secondary">Copy</button>
         </div>
         <pre><code id="installer-snippet"></code></pre>
