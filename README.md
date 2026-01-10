@@ -210,8 +210,8 @@ claude-code-notifier/
 - **Nonce replay protection**: Each nonce valid once (10 min)
 - **Timestamp validation**: ±60 second drift allowed
 - **Rate limiting**: 30 requests per 10 minutes
-- **Request TTL**: Pending requests expire in 10 minutes
-- **Max pending**: 3 concurrent requests per pairing
+- **Request TTL**: Pending requests expire in 60 seconds
+- **Max pending**: 2,000 concurrent requests per pairing
 
 ## Development
 
@@ -238,7 +238,7 @@ cd packages/cli && pnpm start status
 
 - Check `~/.claude/settings.json` syntax
 - Ensure hook script is executable
-- Test manually: `pnpm start request --tool Bash --command "test"`
+- Test manually: `pnpm start -- request --tool Bash --command "test"`
 
 ### "Device not paired" error
 
