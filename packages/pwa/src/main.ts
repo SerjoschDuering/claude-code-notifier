@@ -174,57 +174,107 @@ function buildSetupPrompt(workerUrl: string, pwaUrl: string): string {
 
 Please help me set this up by following these steps:
 
-1. **Generate Pairing Credentials**
-   - Run: npx claude-code-approver@latest init --server ${sanitizedWorkerUrl}
-   - This will display a QR code and pairing credentials
-   - Tell me to keep this terminal open and proceed to step 2
+**STEP 1: Generate Pairing Credentials**
+Run: npx claude-code-approver@latest init --server ${sanitizedWorkerUrl}
 
-2. **Create Hook Script**
-   - Create file at: ~/.claude-approve-hook.sh
-   - The hook script should:
-     * Read JSON from stdin containing tool_name and tool_input
-     * Read config from ~/.claude-approve/config.json (created by step 1)
-     * Send approval request to the server with the pairing credentials
-     * Poll for decision (approve/deny) for up to 60 seconds
-     * Output JSON: {"decision": "approve"} or {"decision": "deny"}
-     * Use bash and standard tools (curl, jq)
-     * Fail open (approve) if any errors occur
-   - Make it executable: chmod +x ~/.claude-approve-hook.sh
+This will display a QR code. Tell me to keep this terminal open and proceed to step 2.
 
-3. **Configure Claude Code Settings**
-   - Update or create ~/.claude/settings.json
-   - Add this hook configuration:
-     {
-       "hooks": {
-         "PreToolUse": [
-           {
-             "matcher": "Bash|Write|Edit",
-             "hooks": [
-               {
-                 "type": "command",
-                 "command": "$HOME/.claude-approve-hook.sh"
-               }
-             ]
-           }
-         ]
-       }
-     }
-   - If settings.json already exists, merge the hooks section carefully
+**STEP 2: Create Hook Script**
+Create file ~/.claude-approve-hook.sh with this EXACT content:
 
-4. **Show iPhone Setup Instructions**
-   - Display clear instructions for:
-     * Opening ${sanitizedPwaUrl} in Safari on iPhone
-     * Adding to Home Screen (Share → Add to Home Screen)
-     * Opening the app FROM Home Screen (critical for notifications)
-     * Tapping "Pair Device" and scanning the QR code from step 1
-     * Enabling push notifications when prompted
+#!/bin/bash
+CONFIG="$HOME/.claude-approve/config.json"
 
-5. **Test the Setup**
-   - After I confirm the iPhone is paired, ask if I want you to test it
-   - Try running a simple command like "ls" that will trigger an approval request
-   - I should see it on my iPhone
+# Fail open if not configured or jq missing
+[ ! -f "$CONFIG" ] && echo '{"decision": "approve"}' && exit 0
+command -v jq &> /dev/null || { echo '{"decision": "approve"}'; exit 0; }
 
-Please proceed step by step, showing me what you're doing and waiting for my confirmation before moving to the next step.
+# Read input from Claude Code
+INPUT=$(cat)
+TOOL=$(echo "$INPUT" | jq -r '.tool_name // "unknown"')
+TOOL_INPUT=$(echo "$INPUT" | jq -c '.tool_input // {}')
+
+# Read config
+SERVER=$(jq -r '.serverUrl' "$CONFIG")
+PAIRING_ID=$(jq -r '.pairingId' "$CONFIG")
+PAIRING_SECRET=$(jq -r '.pairingSecret' "$CONFIG")
+
+# Generate request ID
+REQUEST_ID="req_$(date +%s)_$$"
+
+# Build payload based on tool type
+case "$TOOL" in
+    Bash)
+        CMD=$(echo "$TOOL_INPUT" | jq -r '.command // ""')
+        PAYLOAD=$(jq -n --arg t "$TOOL" --arg c "$CMD" --arg cwd "$(pwd)" '{tool:$t,command:$c,cwd:$cwd}')
+        ;;
+    Write)
+        FILE=$(echo "$TOOL_INPUT" | jq -r '.file_path // ""')
+        PAYLOAD=$(jq -n --arg t "$TOOL" --arg d "Write: $FILE" --arg cwd "$(pwd)" '{tool:$t,details:$d,cwd:$cwd}')
+        ;;
+    Edit)
+        FILE=$(echo "$TOOL_INPUT" | jq -r '.file_path // ""')
+        PAYLOAD=$(jq -n --arg t "$TOOL" --arg d "Edit: $FILE" --arg cwd "$(pwd)" '{tool:$t,details:$d,cwd:$cwd}')
+        ;;
+    *)
+        PAYLOAD=$(jq -n --arg t "$TOOL" --arg d "$TOOL_INPUT" --arg cwd "$(pwd)" '{tool:$t,details:$d,cwd:$cwd}')
+        ;;
+esac
+
+# Generate HMAC signature
+TS=$(date +%s)
+NONCE=$(openssl rand -base64 16 2>/dev/null)
+BODY=$(jq -n --arg pid "$PAIRING_ID" --arg rid "$REQUEST_ID" --argjson p "$PAYLOAD" --arg t "$TS" --arg n "$NONCE" '{pairingId:$pid,requestId:$rid,payload:$p,ts:($t|tonumber),nonce:$n,signature:""}')
+BODY_HASH=$(echo -n "$BODY" | openssl dgst -sha256 -binary | base64)
+CANONICAL=$(printf "POST\\n/api/request\\n%s\\n%s\\n%s" "$BODY_HASH" "$TS" "$NONCE")
+SIGNATURE=$(echo -n "$CANONICAL" | openssl dgst -sha256 -hmac "$(echo -n "$PAIRING_SECRET" | base64 -d)" -binary | base64)
+SIGNED=$(echo "$BODY" | jq --arg s "$SIGNATURE" '.signature=$s')
+
+# Send request
+curl -s -X POST -H "Content-Type: application/json" -d "$SIGNED" "$SERVER/api/request" >/dev/null
+
+# Poll for decision (60 seconds)
+for i in {1..60}; do
+    sleep 1
+    POLL_TS=$(date +%s)
+    POLL_NONCE=$(openssl rand -base64 16 2>/dev/null)
+    POLL_HASH=$(echo -n "" | openssl dgst -sha256 -binary | base64)
+    POLL_CANONICAL=$(printf "GET\\n/api/decision/%s\\n%s\\n%s\\n%s" "$REQUEST_ID" "$POLL_HASH" "$POLL_TS" "$POLL_NONCE")
+    POLL_SIG=$(echo -n "$POLL_CANONICAL" | openssl dgst -sha256 -hmac "$(echo -n "$PAIRING_SECRET" | base64 -d)" -binary | base64)
+    RESULT=$(curl -s -G --data-urlencode "pairingId=$PAIRING_ID" --data-urlencode "ts=$POLL_TS" --data-urlencode "nonce=$POLL_NONCE" --data-urlencode "signature=$POLL_SIG" "$SERVER/api/decision/$REQUEST_ID")
+    STATUS=$(echo "$RESULT" | jq -r '.data.status // "pending"')
+    [ "$STATUS" = "allowed" ] && echo '{"decision":"approve"}' && exit 0
+    [ "$STATUS" = "denied" ] && echo '{"decision":"deny"}' && exit 0
+    [ "$STATUS" = "expired" ] && echo '{"decision":"deny"}' && exit 0
+done
+echo '{"decision":"deny"}' && exit 0
+
+Then run: chmod +x ~/.claude-approve-hook.sh
+
+**STEP 3: Configure Claude Code**
+Update or create ~/.claude/settings.json with this (merge carefully if it exists):
+
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Write|Edit",
+        "hooks": [{"type": "command", "command": "$HOME/.claude-approve-hook.sh"}]
+      }
+    ]
+  }
+}
+
+**STEP 4: Show iPhone Instructions**
+Display these instructions:
+1. Open ${sanitizedPwaUrl} in Safari on iPhone
+2. Tap Share → "Add to Home Screen" → Add
+3. Open app FROM Home Screen (not Safari!)
+4. Tap "Pair Device" and scan QR code from Step 1
+5. Enable notifications when prompted
+
+**STEP 5: Test**
+After I confirm pairing is done, test with: ls
 
 Server URL: ${sanitizedWorkerUrl}
 PWA URL: ${sanitizedPwaUrl}`;
