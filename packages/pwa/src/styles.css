@@ -1208,6 +1208,17 @@ footer p {
   background: #1e293b;
 }
 
+.settings-btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+  font-weight: 600;
+}
+
+.settings-btn.primary:active {
+  background: #4f46e5;
+}
+
 .settings-btn.danger {
   border-color: #7f1d1d;
   color: #f87171;
