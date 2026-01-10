@@ -1,6 +1,6 @@
 // Service Worker for Claude Code Approver PWA
 
-const CACHE_NAME = 'claude-approver-v1';
+const CACHE_NAME = 'claude-approver-v2';
 const STATIC_ASSETS = [
   '/',
   '/pair.html',
@@ -34,14 +34,28 @@ self.addEventListener('activate', (event) => {
 
 // Fetch event - serve from cache, fallback to network
 self.addEventListener('fetch', (event) => {
-  // Skip API requests
-  if (event.request.url.includes('/api/')) {
+  // Skip API requests and non-GET requests
+  if (event.request.url.includes('/api/') || event.request.method !== 'GET') {
+    return;
+  }
+
+  // Skip navigation requests to avoid redirect issues
+  if (event.request.mode === 'navigate') {
     return;
   }
 
   event.respondWith(
     caches.match(event.request).then((response) => {
-      return response || fetch(event.request);
+      if (response) {
+        return response;
+      }
+      return fetch(event.request).then((fetchResponse) => {
+        // Don't cache redirects or errors
+        if (!fetchResponse || fetchResponse.status !== 200 || fetchResponse.type === 'opaqueredirect') {
+          return fetchResponse;
+        }
+        return fetchResponse;
+      });
     })
   );
 });

@@ -3,11 +3,21 @@ import { saveConfig, loadConfig, getConfigPath } from '../config.js';
 import { initializePairing } from '../api.js';
 
 interface InitOptions {
-  server: string;
+  server?: string;
 }
 
 export async function initPairing(options: InitOptions) {
   console.log('\n🔐 Claude Code Approval - Device Pairing\n');
+
+  // Get server URL from option or environment
+  const serverUrl = options.server || process.env.CLAUDE_NOTIFIER_SERVER;
+
+  if (!serverUrl) {
+    console.error('❌ Server URL required.');
+    console.error('\n   Use --server <url> or set CLAUDE_NOTIFIER_SERVER environment variable.');
+    console.error('   Example: claude-approve init --server https://claude-code-notifier.YOUR-SUBDOMAIN.workers.dev\n');
+    process.exit(1);
+  }
 
   // Check if already paired
   const existingConfig = await loadConfig();
@@ -18,10 +28,10 @@ export async function initPairing(options: InitOptions) {
     return;
   }
 
-  console.log('📡 Connecting to server...');
+  console.log(`📡 Connecting to ${serverUrl}...`);
 
   try {
-    const result = await initializePairing(options.server);
+    const result = await initializePairing(serverUrl);
 
     if (!result.success || !result.data) {
       console.error('❌ Failed to initialize pairing:', result.error);
@@ -34,7 +44,7 @@ export async function initPairing(options: InitOptions) {
     await saveConfig({
       pairingId,
       pairingSecret,
-      serverUrl: options.server,
+      serverUrl,
       createdAt: Date.now(),
     });
 

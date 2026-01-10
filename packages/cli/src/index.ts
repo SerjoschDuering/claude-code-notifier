@@ -14,7 +14,7 @@ program
 program
   .command('init')
   .description('Initialize pairing with your mobile device')
-  .option('-s, --server <url>', 'API server URL', 'https://claude-code-notifier.tralala798.workers.dev')
+  .option('-s, --server <url>', 'API server URL')
   .action(initPairing);
 
 program
