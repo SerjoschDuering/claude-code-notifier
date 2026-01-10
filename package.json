@@ -1,0 +1,23 @@
+{
+  "name": "claude-code-notifier",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Approve/deny Claude Code permissions from your iPhone via push notifications",
+  "type": "module",
+  "scripts": {
+    "dev:worker": "pnpm --filter worker dev",
+    "dev:pwa": "pnpm --filter pwa dev",
+    "build": "pnpm -r build",
+    "deploy": "pnpm --filter worker deploy && pnpm --filter pwa deploy",
+    "cli": "pnpm --filter cli start"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#6366f1">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Claude Approve">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <title>Claude Code Approver</title>
+  <link rel="stylesheet" href="/src/styles.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo">⚡</div>
+      <h1>Claude Code Approver</h1>
+      <p class="subtitle">Approve permissions from your phone</p>
+    </header>
+
+    <main id="main-content">
+      <div id="status-section" class="card">
+        <h2>Status</h2>
+        <div id="connection-status" class="status-indicator">
+          <span class="status-dot"></span>
+          <span class="status-text">Checking...</span>
+        </div>
+      </div>
+
+      <div id="not-paired" class="card hidden">
+        <h2>Get Started</h2>
+        <p>Pair your device with Claude Code to receive approval requests.</p>
+        <a href="/pair.html" class="button primary">Pair Device</a>
+      </div>
+
+      <div id="paired" class="card hidden">
+        <h2>Ready</h2>
+        <p>Your device is paired and ready to receive approval requests.</p>
+        <div id="pairing-info">
+          <small>Pairing ID: <code id="pairing-id-display">—</code></small>
+        </div>
+        <button id="test-notification" class="button secondary">Test Notification</button>
+        <button id="unpair" class="button danger">Unpair Device</button>
+      </div>
+
+      <div id="push-permission" class="card hidden">
+        <h2>Enable Notifications</h2>
+        <p>Allow notifications to receive approval requests instantly.</p>
+        <button id="enable-push" class="button primary">Enable Notifications</button>
+      </div>
+    </main>
+
+    <footer>
+      <p>Add to Home Screen for best experience</p>
+    </footer>
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

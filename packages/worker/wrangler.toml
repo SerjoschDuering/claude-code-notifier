@@ -1,0 +1,24 @@
+name = "claude-code-notifier"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+# Durable Objects for consistent state
+[[durable_objects.bindings]]
+name = "APPROVAL_REQUESTS"
+class_name = "ApprovalRequestsDO"
+
+[[durable_objects.bindings]]
+name = "DEVICE_REGISTRY"
+class_name = "DeviceRegistryDO"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ApprovalRequestsDO", "DeviceRegistryDO"]
+
+# Environment variables (set via wrangler secret)
+# VAPID_PUBLIC_KEY - Web Push VAPID public key
+# VAPID_PRIVATE_KEY - Web Push VAPID private key
+# VAPID_SUBJECT - mailto: or https: URL for VAPID
+
+[vars]
+ENVIRONMENT = "development"

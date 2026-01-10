@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#6366f1">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <title>Approve Request - Claude Approver</title>
+  <link rel="stylesheet" href="/src/styles.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <a href="/" class="back-link">← Back</a>
+      <h1>Approval Request</h1>
+    </header>
+
+    <main>
+      <div id="loading" class="card">
+        <div class="spinner"></div>
+        <p>Loading request...</p>
+      </div>
+
+      <div id="request-details" class="card hidden">
+        <div class="request-header">
+          <span id="request-tool" class="tool-badge">Tool</span>
+          <span id="request-time" class="request-time">Just now</span>
+        </div>
+
+        <div class="request-content">
+          <h2 id="request-title">Claude wants to execute a command</h2>
+
+          <div id="command-section" class="code-block">
+            <label>Command</label>
+            <pre id="request-command"></pre>
+          </div>
+
+          <div id="details-section" class="details-block hidden">
+            <label>Details</label>
+            <pre id="request-details-content"></pre>
+          </div>
+
+          <div id="cwd-section" class="meta-info hidden">
+            <label>Working Directory</label>
+            <code id="request-cwd"></code>
+          </div>
+        </div>
+
+        <div class="request-actions">
+          <button id="deny-btn" class="button danger large">Deny</button>
+          <button id="approve-btn" class="button success large">Approve</button>
+        </div>
+
+        <div id="expires-info" class="expires-info">
+          Expires in <span id="expires-time">10:00</span>
+        </div>
+      </div>
+
+      <div id="request-decided" class="card hidden">
+        <div id="decided-icon" class="decision-icon"></div>
+        <h2 id="decided-title">Request Handled</h2>
+        <p id="decided-message">The request has been processed.</p>
+        <a href="/" class="button primary">Done</a>
+      </div>
+
+      <div id="request-error" class="card hidden">
+        <div class="error-icon">✕</div>
+        <h2>Error</h2>
+        <p id="request-error-message">Could not load request</p>
+        <a href="/" class="button primary">Go Home</a>
+      </div>
+    </main>
+  </div>
+
+  <script type="module" src="/src/approve.ts"></script>
+</body>
+</html>
