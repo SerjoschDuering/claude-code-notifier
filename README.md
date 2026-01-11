@@ -1,4 +1,6 @@
-# Claude Code Notifier
+# Claude Code Notifier - Testing Approval System
+<!-- Test comment for hook approval testing -->
+<!-- Additional test comment added during continuous testing -->
 
 **Approve Claude Code permission requests from your iPhone via push notifications.**
 
@@ -30,36 +32,90 @@ When Claude Code wants to run a command, write a file, or perform other actions,
 - ⚡ **Fast** - Edge-deployed on Cloudflare Workers
 - 🆓 **Free** - Runs entirely on Cloudflare free tier
 - 📱 **PWA** - No app store, just add to Home Screen
+- 🎛️ **Simple toggle** - Turn notifications on/off with one command
+- ⏱️ **Session approvals** - Approve once, all session, or per-tool
+
+## Automatic Toggle with Focus Mode (Recommended)
+
+Set up once, never think about it again! The hook automatically detects your Focus Mode using Apple Shortcuts:
+
+**When "claude remote approve" Focus Mode is active** → Send notifications to iPhone 📱
+**When Focus Mode is off** → Show CLI prompts instead 💻
+
+**Setup:** [Complete Shortcuts Guide](./docs/SHORTCUTS-AUTOMATION.md) | [Quick Setup](./docs/FOCUS-MODE-QUICK-SETUP.md)
+
+**Benefits:**
+- ✅ Fully automatic (no manual toggling)
+- ✅ No Full Disk Access required
+- ✅ No file state needed
+- ✅ No automations needed
+- ✅ Real-time detection via `shortcuts` CLI
+
+**Quick setup (~2 min):**
+1. **Install the Shortcut:**
+   - **Download:** [Get Current Focus](https://www.icloud.com/shortcuts/b13ac25ce397415097a80cb6fe28fbad)
+   - Or create manually in Shortcuts app:
+     - Add action: "Get Current Focus"
+     - Add action: "Get Name" (connected to Focus output)
+     - Save as "Get Current Focus"
+
+2. **Create your Focus Mode:**
+   - System Settings > Focus > "+"
+   - Name it: **"claude remote approve"** (exact match required!)
+   - Configure as desired, then save
+
+   > **Tip:** You can use any Focus Mode name by adding `"focusModeName": "Your Mode"` to `~/.claude-approve/config.json`
+
+3. **Test it works:**
+   ```bash
+   shortcuts run "Get Current Focus"
+   # Should print: claude remote approve (when Focus is ON)
+   ```
+
+That's it! The hook will automatically check your Focus Mode before each approval request.
+
+---
+
+## Manual Toggle (Alternative)
+
+Prefer manual control? Simple commands are available:
+
+```bash
+# Turn OFF notifications (use local CLI prompts instead)
+claude-notify-off
+
+# Turn ON notifications (send to iPhone)
+claude-notify-on
+
+# Check current status
+claude-notify-status
+```
+
+**Use case:** Working at your desk? Run `claude-notify-off`. On the couch? Run `claude-notify-on`.
+
+These commands are automatically added to your `~/.zshrc` during installation.
 
 ## Quick Start
 
 ### Prerequisites
 
-- Node.js 18+
-- pnpm (`npm install -g pnpm`)
 - Cloudflare account (free tier works)
 - iPhone with iOS 16.4+ (must add the PWA to Home Screen for push)
+- macOS with `jq`, `curl`, `openssl`, and `xxd` installed
 
 ## Step-by-Step Install
 
-### 1. Clone & Install
+### 1. Deploy the Backend (Self-Hosted)
 
 ```bash
 git clone https://github.com/SerjoschDuering/claude-code-notifier.git
 cd claude-code-notifier
 pnpm install
-```
 
-> Tip: keep the folder somewhere permanent (for example `~/ClaudeCodeNotifyer`) so the CLI + hook can always find it.
-
-### 2. Deploy the Worker (Cloudflare)
-
-```bash
+# Deploy Worker
 npm install -g wrangler web-push
 wrangler login
-
-# Generate VAPID keys once and store them somewhere safe
-web-push generate-vapid-keys
+web-push generate-vapid-keys  # Save these keys!
 
 cd packages/worker
 wrangler secret put VAPID_PUBLIC_KEY
@@ -68,9 +124,9 @@ wrangler secret put VAPID_SUBJECT   # e.g. mailto:you@example.com
 wrangler deploy
 ```
 
-The deploy step prints your Worker URL (for example `https://claude-code-notifier.YOUR_SUBDOMAIN.workers.dev`). You will reuse it everywhere.
+Note your Worker URL: `https://claude-code-notifier.YOUR_SUBDOMAIN.workers.dev`
 
-### 3. Deploy the PWA (Cloudflare Pages)
+### 2. Deploy the PWA
 
 ```bash
 cd packages/pwa
@@ -79,46 +135,23 @@ pnpm build
 wrangler pages deploy dist --project-name=claude-approver
 ```
 
-Visit the Pages URL in Safari and "Add to Home Screen".
+### 3. Pair Your iPhone
 
-#### Optional: Enable Tip Button
+1. Open your PWA URL in Safari on iPhone
+2. Tap Share → "Add to Home Screen"
+3. Open the app FROM Home Screen (not Safari!)
+4. Tap "Pair Device" and scan the QR code
+5. Allow push notifications when prompted
 
-If you want to add a support tip button (completely optional):
+### 4. Install the Hook
 
-1. Create Stripe Payment Links at https://dashboard.stripe.com/payment-links
-2. Add them to your `.env` file:
+After pairing, the PWA shows a **Setup** button with a complete bash script. Copy it and run in your terminal. The script:
 
-```bash
-cd packages/pwa
-cat >> .env << 'EOF'
-VITE_STRIPE_LINK_SMALL=https://buy.stripe.com/YOUR_SMALL_LINK
-VITE_STRIPE_LINK_CUSTOM=https://buy.stripe.com/YOUR_CUSTOM_LINK
-EOF
-```
+- Creates `~/.claude-approve-hook.sh` with embedded credentials
+- Uses pure bash (curl + openssl) - no npm dependencies
+- Signs requests with HMAC-SHA256 header-based authentication
 
-3. Rebuild and redeploy:
-
-```bash
-pnpm build
-wrangler pages deploy dist --project-name=claude-approver
-```
-
-If these variables are not set, the tip button will be automatically hidden.
-
-### 4. Pair Your Phone
-
-```bash
-cd packages/cli
-pnpm start init --server https://claude-code-notifier.YOUR_SUBDOMAIN.workers.dev
-```
-
-Point the iPhone camera at the QR code (or type the pairing ID + secret), then tap **Enable notifications**.
-
-### 5. Install the Claude Code Hook
-
-1. Install `jq` (`brew install jq` on macOS, `sudo apt install jq` on Linux).
-2. Make the hook executable: `chmod +x /path/to/claude-code-notifier/hook/approve-hook.sh`
-3. Add it to `~/.claude/settings.json`:
+Alternatively, manually add to `~/.claude/settings.json`:
 
 ```json
 {
@@ -126,56 +159,11 @@ Point the iPhone camera at the QR code (or type the pairing ID + secret), then t
     "PreToolUse": [
       {
         "matcher": "Bash|Write|Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/path/to/claude-code-notifier/hook/approve-hook.sh"
-          }
-        ]
+        "hooks": [{"type": "command", "command": "$HOME/.claude-approve-hook.sh"}]
       }
     ]
   }
 }
-```
-
-#### Copy/Paste installer for Claude Code
-
-Set your Worker URL and paste this block into Claude Code’s terminal to let it do the rest:
-
-```bash
-WORKER_URL="https://claude-code-notifier.YOUR_SUBDOMAIN.workers.dev"
-APP_DIR="$HOME/ClaudeCodeNotifyer"
-
-set -euo pipefail
-
-if [ ! -d "$APP_DIR" ]; then
-  git clone https://github.com/SerjoschDuering/claude-code-notifier.git "$APP_DIR"
-fi
-
-cd "$APP_DIR"
-pnpm install
-pnpm --filter cli start init --server "$WORKER_URL"
-chmod +x hook/approve-hook.sh
-
-cat <<JSON > ~/.claude/settings.json
-{
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash|Write|Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash $APP_DIR/hook/approve-hook.sh"
-          }
-        ]
-      }
-    ]
-  }
-}
-JSON
-
-echo "All set! Claude Code will request approvals via $WORKER_URL"
 ```
 ## Hook Configuration
 
@@ -214,7 +202,7 @@ The `hook/approve-hook.sh` script:
 1. Reads tool input from stdin (JSON)
 2. Sends approval request to your Worker
 3. Polls for your decision
-4. Returns `{"decision": "approve"}` or `{"decision": "deny"}`
+4. Returns proper `hookSpecificOutput` with `permissionDecision: "allow"` or `"deny"`
 
 ## Project Structure
 
@@ -222,10 +210,9 @@ The `hook/approve-hook.sh` script:
 claude-code-notifier/
 ├── packages/
 │   ├── shared/      # Shared TypeScript types
-│   ├── worker/      # Cloudflare Worker (API)
-│   ├── pwa/         # Progressive Web App
-│   └── cli/         # CLI tool for pairing
-├── hook/            # Claude Code hook scripts
+│   ├── worker/      # Cloudflare Worker (API + v2 header auth)
+│   └── pwa/         # Progressive Web App (generates setup scripts)
+├── hook/            # Claude Code hook scripts (pure bash)
 └── docs/            # Documentation
 ```
 
@@ -246,9 +233,6 @@ cd packages/worker && pnpm dev
 
 # Run PWA dev server
 cd packages/pwa && pnpm dev
-
-# Test CLI
-cd packages/cli && pnpm start status
 ```
 
 ## Troubleshooting
@@ -262,13 +246,13 @@ cd packages/cli && pnpm start status
 ### Hook not triggering
 
 - Check `~/.claude/settings.json` syntax
-- Ensure hook script is executable
-- Test manually: `pnpm start -- request --tool Bash --command "test"`
+- Ensure hook script is executable: `chmod +x ~/.claude-approve-hook.sh`
+- Check dependencies: `which jq curl openssl xxd`
 
 ### "Device not paired" error
 
-- Run `pnpm start init` to generate new pairing
-- Re-pair on iPhone
+- Re-pair on iPhone using the PWA
+- Regenerate the setup script after pairing
 
 ## Contributing
 

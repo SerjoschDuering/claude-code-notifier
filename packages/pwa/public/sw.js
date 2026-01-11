@@ -109,13 +109,13 @@ self.addEventListener('notificationclick', (event) => {
       handleQuickAction(requestId, event.action === 'approve' ? 'allow' : 'deny')
     );
   } else {
-    // Open the approve page
-    const url = requestId ? `/approve.html?id=${requestId}` : '/';
+    // Open the main page (pending requests list)
+    const url = '/';
     event.waitUntil(
       clients.matchAll({ type: 'window' }).then((windowClients) => {
         // Check if there's already a window open
         for (const client of windowClients) {
-          if (client.url.includes('/approve.html') && 'focus' in client) {
+          if ('focus' in client) {
             client.navigate(url);
             return client.focus();
           }

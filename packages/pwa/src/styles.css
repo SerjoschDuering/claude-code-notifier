@@ -888,14 +888,15 @@ main {
 }
 
 .request-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 12px;
   margin-top: 24px;
 }
 
 .request-actions .button {
   margin: 0;
+  width: 100%;
 }
 
 .expires-info {
@@ -1278,8 +1279,11 @@ footer p {
   transition: all 0.3s ease;
   opacity: 1;
   transform: translateX(0);
-  max-height: 400px;
-  overflow: hidden;
+  max-height: 70vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
 }
 
 .request-card:last-child {
@@ -1423,31 +1427,59 @@ footer p {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
+  margin-top: 12px;
+  flex-shrink: 0;
 }
 
 .btn-approve,
+.btn-approve-once,
+.btn-approve-tool,
+.btn-approve-all,
 .btn-deny {
   display: flex;
   flex-direction: row;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 12px 10px;
+  padding: 10px;
   border: none;
   border-radius: 8px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.15s ease;
+  font-size: 13px;
 }
 
-.btn-approve {
+.btn-approve,
+.btn-approve-once {
   background: #22c55e;
   color: white;
 }
 
-.btn-approve:active {
+.btn-approve:active,
+.btn-approve-once:active {
   background: #16a34a;
-  transform: scale(0.97);
+  transform: scale(0.98);
+}
+
+.btn-approve-tool {
+  background: #3b82f6;
+  color: white;
+}
+
+.btn-approve-tool:active {
+  background: #2563eb;
+  transform: scale(0.98);
+}
+
+.btn-approve-all {
+  background: #8b5cf6;
+  color: white;
+}
+
+.btn-approve-all:active {
+  background: #7c3aed;
+  transform: scale(0.98);
 }
 
 .btn-deny {
@@ -1457,18 +1489,22 @@ footer p {
 
 .btn-deny:active {
   background: #dc2626;
-  transform: scale(0.97);
+  transform: scale(0.98);
 }
 
 .btn-icon {
-  font-size: 16px;
+  font-size: 14px;
 }
 
 .btn-text {
-  font-size: 13px;
+  font-size: 12px;
+  line-height: 1.2;
 }
 
 .btn-approve:disabled,
+.btn-approve-once:disabled,
+.btn-approve-tool:disabled,
+.btn-approve-all:disabled,
 .btn-deny:disabled {
   opacity: 0.5;
   cursor: not-allowed;

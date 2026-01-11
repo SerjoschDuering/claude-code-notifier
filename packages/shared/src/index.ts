@@ -1,5 +1,7 @@
 // Shared types for Claude Code Notifier
 
+export type ApprovalScope = 'once' | 'session-tool' | 'session-all';
+
 export interface PairingData {
   pairingId: string;
   pairingSecret: string; // Base64 encoded 32-byte secret for HMAC
@@ -19,6 +21,7 @@ export interface ApprovalRequest {
   pairingId: string;
   payload: RequestPayload;
   status: 'pending' | 'allowed' | 'denied' | 'expired';
+  approvalScope?: ApprovalScope; // Scope of approval (once, session-tool, session-all)
   createdAt: number;
   expiresAt: number;
 }
@@ -49,6 +52,7 @@ export interface CreateApprovalRequest extends SignedRequest {
 
 export interface DecisionRequest extends SignedRequest {
   decision: 'allow' | 'deny';
+  scope?: ApprovalScope; // Scope of approval for session caching
 }
 
 export interface ApiResponse<T = unknown> {
@@ -58,7 +62,7 @@ export interface ApiResponse<T = unknown> {
 }
 
 // Constants
-export const REQUEST_TTL_SECONDS = 60; // 1 minute
+export const REQUEST_TTL_SECONDS = 120; // 2 minutes
 export const NONCE_TTL_SECONDS = 600;
 export const MAX_PENDING_REQUESTS = 2000;
 export const MAX_REQUESTS_PER_WINDOW = 30;

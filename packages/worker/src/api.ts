@@ -18,6 +18,19 @@ export async function handleApiRequest(
   const url = new URL(request.url);
   const path = url.pathname.replace('/api', '');
 
+  // Handle CORS preflight for v2 endpoints (custom headers)
+  if (request.method === 'OPTIONS') {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, X-Pairing-ID, X-Timestamp, X-Nonce, Authorization',
+        'Access-Control-Max-Age': '86400',
+      },
+    });
+  }
+
   // GET /api/vapid-public-key - return VAPID public key for push subscription
   if (path === '/vapid-public-key' && request.method === 'GET') {
     return jsonResponse({ publicKey: env.VAPID_PUBLIC_KEY });
@@ -32,6 +45,21 @@ export async function handleApiRequest(
   if (path === '/pair/register-push' && request.method === 'POST') {
     return handleRegisterPush(request, env);
   }
+
+  // ========== V2 ENDPOINTS (Header-based auth) ==========
+
+  // POST /api/v2/request - create approval request with header auth
+  if (path === '/v2/request' && request.method === 'POST') {
+    return handleCreateRequestV2(request, env, ctx);
+  }
+
+  // GET /api/v2/decision/:id - poll for decision with header auth
+  if (path.startsWith('/v2/decision/') && request.method === 'GET') {
+    const requestId = path.replace('/v2/decision/', '');
+    return handlePollDecisionV2(request, env, requestId);
+  }
+
+  // ========== V1 ENDPOINTS (Body-based auth - deprecated) ==========
 
   // POST /api/request - create a new approval request
   if (path === '/request' && request.method === 'POST') {
@@ -245,7 +273,7 @@ async function handleDecision(
 
   const resp = await requestsDO.fetch(new Request(`http://internal/decide/${requestId}`, {
     method: 'POST',
-    body: JSON.stringify({ decision: data.decision }),
+    body: JSON.stringify({ decision: data.decision, scope: data.scope }),
   }));
 
   const result = await resp.json();
@@ -299,8 +327,8 @@ async function handlePollDecision(
     return jsonResponse({ success: false, error: (data as { error: string }).error }, resp.status);
   }
 
-  const approvalRequest = data as { status: string };
-  return jsonResponse({ success: true, data: { status: approvalRequest.status } });
+  const approvalRequest = data as { status: string; approvalScope?: string };
+  return jsonResponse({ success: true, data: { status: approvalRequest.status, scope: approvalRequest.approvalScope } });
 }
 
 async function validateSignedRequest(
@@ -375,9 +403,228 @@ async function handleListPending(
   return jsonResponse({ success: true, data: data.requests });
 }
 
+// ========== V2 HANDLER FUNCTIONS (Header-based auth) ==========
+
+/**
+ * Validate header-based authentication for v2 endpoints.
+ * Auth parameters come from headers, not body.
+ * This eliminates JSON property ordering fragility.
+ */
+async function validateHeaderAuth(
+  request: Request,
+  bodyText: string,
+  path: string,
+  method: string,
+  env: Env
+): Promise<{ valid: boolean; pairingId?: string; error?: string }> {
+  // Extract auth from headers
+  const pairingId = request.headers.get('X-Pairing-ID');
+  const tsStr = request.headers.get('X-Timestamp');
+  const nonce = request.headers.get('X-Nonce');
+  const authHeader = request.headers.get('Authorization');
+
+  if (!pairingId || !tsStr || !nonce || !authHeader) {
+    return { valid: false, error: 'Missing auth headers' };
+  }
+
+  const ts = parseInt(tsStr, 10);
+  if (isNaN(ts)) {
+    return { valid: false, error: 'Invalid timestamp' };
+  }
+
+  // Extract signature from Authorization header
+  const signature = authHeader.replace('HMAC-SHA256 ', '');
+  if (!signature || signature === authHeader) {
+    return { valid: false, error: 'Invalid Authorization header format' };
+  }
+
+  // Check timestamp
+  if (!isTimestampValid(ts)) {
+    return { valid: false, error: 'Timestamp out of range' };
+  }
+
+  // Get device data
+  const deviceId = env.DEVICE_REGISTRY.idFromName(pairingId);
+  const deviceDO = env.DEVICE_REGISTRY.get(deviceId);
+
+  const deviceResp = await deviceDO.fetch(new Request('http://internal/get'));
+  if (!deviceResp.ok) {
+    return { valid: false, error: 'Device not found' };
+  }
+
+  const deviceData = await deviceResp.json() as { pairingSecret: string };
+
+  // Check nonce
+  const nonceResp = await deviceDO.fetch(new Request('http://internal/check-nonce', {
+    method: 'POST',
+    body: JSON.stringify({ nonce }),
+  }));
+  const nonceResult = await nonceResp.json() as { valid: boolean; error?: string };
+  if (!nonceResult.valid) {
+    return { valid: false, error: nonceResult.error || 'Invalid nonce' };
+  }
+
+  // Hash raw body (empty string for GET requests)
+  const bodyHash = await hashBody(bodyText || '');
+
+  // Build canonical string: METHOD\nPATH\nBODY_HASH\nTS\nNONCE
+  const canonicalString = buildCanonicalString(method, path, bodyHash, ts, nonce);
+
+  // Verify signature
+  const isValid = await verifySignature(deviceData.pairingSecret, canonicalString, signature);
+  if (!isValid) {
+    return { valid: false, error: 'Invalid signature' };
+  }
+
+  return { valid: true, pairingId };
+}
+
+/**
+ * V2 Create approval request with header-based authentication.
+ * Body only contains request data, no auth fields.
+ */
+async function handleCreateRequestV2(
+  request: Request,
+  env: Env,
+  ctx: ExecutionContext
+): Promise<Response> {
+  const bodyText = await request.text();
+
+  if (bodyText.length > MAX_PAYLOAD_SIZE_BYTES) {
+    return jsonResponseWithCors({ success: false, error: 'Payload too large' }, 413);
+  }
+
+  // Validate header auth
+  const validation = await validateHeaderAuth(request, bodyText, '/api/v2/request', 'POST', env);
+  if (!validation.valid || !validation.pairingId) {
+    return jsonResponseWithCors({ success: false, error: validation.error }, 401);
+  }
+
+  const pairingId = validation.pairingId;
+
+  // Parse body (only contains request data, no auth fields)
+  let data: { requestId: string; payload: { tool: string; details?: string; cwd?: string } };
+  try {
+    data = JSON.parse(bodyText);
+  } catch {
+    return jsonResponseWithCors({ success: false, error: 'Invalid JSON body' }, 400);
+  }
+
+  // Check rate limit
+  const deviceId = env.DEVICE_REGISTRY.idFromName(pairingId);
+  const deviceDO = env.DEVICE_REGISTRY.get(deviceId);
+
+  const rateLimitResp = await deviceDO.fetch(new Request('http://internal/check-rate-limit'));
+  const rateLimit = await rateLimitResp.json() as { allowed: boolean };
+  if (!rateLimit.allowed) {
+    return jsonResponseWithCors({ success: false, error: 'Rate limit exceeded' }, 429);
+  }
+
+  // Create approval request
+  const requestsId = env.APPROVAL_REQUESTS.idFromName(pairingId);
+  const requestsDO = env.APPROVAL_REQUESTS.get(requestsId);
+
+  const createResp = await requestsDO.fetch(new Request('http://internal/create', {
+    method: 'POST',
+    body: JSON.stringify({
+      requestId: data.requestId,
+      pairingId,
+      payload: data.payload,
+    }),
+  }));
+
+  if (!createResp.ok) {
+    const error = await createResp.json() as { error: string };
+    return jsonResponseWithCors({ success: false, error: error.error }, createResp.status);
+  }
+
+  // Increment request count
+  await deviceDO.fetch(new Request('http://internal/increment-request', { method: 'POST' }));
+
+  // Get push subscription and send notification
+  const deviceResp = await deviceDO.fetch(new Request('http://internal/get'));
+  if (deviceResp.ok) {
+    const deviceData = await deviceResp.json() as { pushSubscription?: PushSubscriptionData };
+    if (deviceData.pushSubscription) {
+      // Send push notification in background
+      ctx.waitUntil(
+        sendPushNotification(
+          deviceData.pushSubscription,
+          {
+            title: 'Claude needs approval',
+            body: `${data.payload.tool}: ${data.payload.details || 'Action required'}`,
+            data: { requestId: data.requestId, pairingId },
+            tag: data.requestId,
+            requireInteraction: true,
+            actions: [
+              { action: 'approve', title: 'Approve' },
+              { action: 'deny', title: 'Deny' },
+            ],
+          },
+          {
+            publicKey: env.VAPID_PUBLIC_KEY,
+            privateKey: env.VAPID_PRIVATE_KEY,
+            subject: env.VAPID_SUBJECT,
+          }
+        ).catch(err => {
+          console.error('Push error:', err);
+        })
+      );
+    }
+  }
+
+  return jsonResponseWithCors({ success: true, data: { requestId: data.requestId } });
+}
+
+/**
+ * V2 Poll for decision with header-based authentication.
+ */
+async function handlePollDecisionV2(
+  request: Request,
+  env: Env,
+  requestId: string
+): Promise<Response> {
+  // Validate header auth (empty body for GET)
+  const validation = await validateHeaderAuth(request, '', `/api/v2/decision/${requestId}`, 'GET', env);
+  if (!validation.valid || !validation.pairingId) {
+    return jsonResponseWithCors({ success: false, error: validation.error }, 401);
+  }
+
+  const pairingId = validation.pairingId;
+
+  const requestsId = env.APPROVAL_REQUESTS.idFromName(pairingId);
+  const requestsDO = env.APPROVAL_REQUESTS.get(requestsId);
+
+  const resp = await requestsDO.fetch(new Request(`http://internal/get/${requestId}`));
+
+  if (resp.status === 404) {
+    return jsonResponseWithCors({ success: true, data: { status: 'expired' } });
+  }
+
+  const data = await resp.json();
+
+  if (!resp.ok) {
+    return jsonResponseWithCors({ success: false, error: (data as { error: string }).error }, resp.status);
+  }
+
+  const approvalRequest = data as { status: string; approvalScope?: string };
+  return jsonResponseWithCors({ success: true, data: { status: approvalRequest.status, scope: approvalRequest.approvalScope } });
+}
+
 function jsonResponse(data: ApiResponse, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
     headers: { 'Content-Type': 'application/json' },
+  });
+}
+
+function jsonResponseWithCors(data: ApiResponse, status = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': 'Content-Type, X-Pairing-ID, X-Timestamp, X-Nonce, Authorization',
+    },
   });
 }

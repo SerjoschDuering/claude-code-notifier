@@ -22,7 +22,7 @@ async function init() {
 
   // Handle quick action from notification
   if (quickAction === 'allow' || quickAction === 'deny') {
-    await handleDecision(pairingData, requestId, quickAction);
+    await handleDecision(pairingData, requestId, quickAction, 'once');
     return;
   }
 
@@ -46,13 +46,23 @@ async function init() {
     // Show request details
     showRequest(request);
 
-    // Setup buttons
-    document.getElementById('approve-btn')!.addEventListener('click', () => {
-      handleDecision(pairingData, requestId, 'allow');
+    // Setup buttons with scope
+    const tool = request.payload.tool;
+
+    document.getElementById('approve-once-btn')!.addEventListener('click', () => {
+      handleDecision(pairingData, requestId, 'allow', 'once');
+    });
+
+    document.getElementById('approve-tool-btn')!.addEventListener('click', () => {
+      handleDecision(pairingData, requestId, 'allow', 'session-tool');
+    });
+
+    document.getElementById('approve-all-btn')!.addEventListener('click', () => {
+      handleDecision(pairingData, requestId, 'allow', 'session-all');
     });
 
     document.getElementById('deny-btn')!.addEventListener('click', () => {
-      handleDecision(pairingData, requestId, 'deny');
+      handleDecision(pairingData, requestId, 'deny', 'once');
     });
 
     // Start expiry countdown
@@ -82,6 +92,9 @@ function showRequest(request: {
 
   // Tool badge
   document.getElementById('request-tool')!.textContent = payload.tool;
+
+  // Update tool name in button
+  document.getElementById('tool-name')!.textContent = payload.tool;
 
   // Time
   const timeAgo = formatTimeAgo(createdAt);
@@ -116,34 +129,42 @@ function showRequest(request: {
 async function handleDecision(
   pairingData: { pairingId: string; pairingSecret: string },
   requestId: string,
-  decision: 'allow' | 'deny'
+  decision: 'allow' | 'deny',
+  scope: 'once' | 'session-tool' | 'session-all'
 ) {
-  // Disable buttons
-  const approveBtn = document.getElementById('approve-btn') as HTMLButtonElement;
-  const denyBtn = document.getElementById('deny-btn') as HTMLButtonElement;
+  // Disable all buttons
+  const buttons = [
+    document.getElementById('approve-once-btn'),
+    document.getElementById('approve-tool-btn'),
+    document.getElementById('approve-all-btn'),
+    document.getElementById('deny-btn')
+  ];
 
-  if (approveBtn) approveBtn.disabled = true;
-  if (denyBtn) denyBtn.disabled = true;
+  buttons.forEach(btn => {
+    if (btn) (btn as HTMLButtonElement).disabled = true;
+  });
 
   try {
-    const result = await submitDecision(pairingData, requestId, decision);
+    const result = await submitDecision(pairingData, requestId, decision, scope);
 
     if (result.success) {
-      showDecided(decision === 'allow' ? 'allowed' : 'denied');
+      showDecided(decision === 'allow' ? 'allowed' : 'denied', scope);
     } else {
       alert('Failed to submit decision: ' + result.error);
-      if (approveBtn) approveBtn.disabled = false;
-      if (denyBtn) denyBtn.disabled = false;
+      buttons.forEach(btn => {
+        if (btn) (btn as HTMLButtonElement).disabled = false;
+      });
     }
   } catch (error) {
     console.error('Decision error:', error);
     alert('Failed to submit decision: ' + error);
-    if (approveBtn) approveBtn.disabled = false;
-    if (denyBtn) denyBtn.disabled = false;
+    buttons.forEach(btn => {
+      if (btn) (btn as HTMLButtonElement).disabled = false;
+    });
   }
 }
 
-function showDecided(status: 'allowed' | 'denied' | 'expired') {
+function showDecided(status: 'allowed' | 'denied' | 'expired', scope?: 'once' | 'session-tool' | 'session-all') {
   if (expiryInterval) {
     clearInterval(expiryInterval);
   }
@@ -160,7 +181,14 @@ function showDecided(status: 'allowed' | 'denied' | 'expired') {
     icon.textContent = '✓';
     icon.className = 'decision-icon approved';
     title.textContent = 'Approved';
-    message.textContent = 'The request has been approved. Claude Code will continue.';
+
+    if (scope === 'session-tool') {
+      message.textContent = 'Approved! All future requests for this tool in this session will be auto-approved.';
+    } else if (scope === 'session-all') {
+      message.textContent = 'Approved! All future requests in this session will be auto-approved.';
+    } else {
+      message.textContent = 'The request has been approved. Claude Code will continue.';
+    }
   } else if (status === 'denied') {
     icon.textContent = '✕';
     icon.className = 'decision-icon denied';

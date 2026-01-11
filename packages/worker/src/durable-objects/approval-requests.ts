@@ -137,7 +137,7 @@ export class ApprovalRequestsDO implements DurableObject {
   }
 
   private async handleDecide(request: Request, requestId: string): Promise<Response> {
-    const { decision } = await request.json() as { decision: 'allow' | 'deny' };
+    const { decision, scope } = await request.json() as { decision: 'allow' | 'deny'; scope?: string };
 
     const req = this.requests.get(requestId);
 
@@ -156,10 +156,13 @@ export class ApprovalRequestsDO implements DurableObject {
     }
 
     req.status = decision === 'allow' ? 'allowed' : 'denied';
+    if (scope) {
+      req.approvalScope = scope as 'once' | 'session-tool' | 'session-all';
+    }
     this.pendingRequestIds.delete(requestId);
     await this.persistRequest(req);
 
-    return new Response(JSON.stringify({ success: true, status: req.status }), {
+    return new Response(JSON.stringify({ success: true, status: req.status, scope: req.approvalScope }), {
       headers: { 'Content-Type': 'application/json' },
     });
   }

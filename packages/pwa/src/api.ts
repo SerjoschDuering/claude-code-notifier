@@ -181,15 +181,18 @@ export async function getPendingRequests(
 export async function submitDecision(
   params: SignedRequestParams,
   requestId: string,
-  decision: 'allow' | 'deny'
+  decision: 'allow' | 'deny',
+  scope?: 'once' | 'session-tool' | 'session-all'
 ): Promise<{ success: boolean; error?: string }> {
   const path = `/api/decision/${requestId}`;
   const ts = Math.floor(Date.now() / 1000);
   const nonce = generateNonce();
 
+  // Build body with consistent key order
   const bodyData = {
     pairingId: params.pairingId,
     decision,
+    ...(scope ? { scope } : {}),
     ts,
     nonce,
     signature: '',
@@ -204,6 +207,7 @@ export async function submitDecision(
     nonce
   );
 
+  // Update with real signature
   bodyData.signature = signature;
 
   const response = await fetch(`${API_BASE}/decision/${requestId}`, {
