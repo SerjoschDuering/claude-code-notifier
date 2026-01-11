@@ -276,15 +276,16 @@ case "$TOOL" in
 esac
 
 # Function: Create HMAC-SHA256 signature
+# CRITICAL: Use API_PATH not PATH to avoid shadowing system PATH!
 create_signature() {
-    local METHOD="$1" PATH="$2" BODY="$3" TS="$4" NONCE="$5" SECRET="$6"
+    local METHOD="$1" API_PATH="$2" BODY="$3" TS="$4" NONCE="$5" SECRET="$6"
     local BODY_HASH
     if [ -z "$BODY" ]; then
         BODY_HASH=$(printf '' | openssl dgst -sha256 -binary | openssl enc -base64 -A)
     else
         BODY_HASH=$(printf '%s' "$BODY" | openssl dgst -sha256 -binary | openssl enc -base64 -A)
     fi
-    local CANONICAL=$(printf '%s\\n%s\\n%s\\n%s\\n%s' "$METHOD" "$PATH" "$BODY_HASH" "$TS" "$NONCE")
+    local CANONICAL=$(printf '%s\\n%s\\n%s\\n%s\\n%s' "$METHOD" "$API_PATH" "$BODY_HASH" "$TS" "$NONCE")
     local SECRET_HEX=$(printf '%s' "$SECRET" | openssl enc -d -base64 -A | xxd -p -c 256 | tr -d '\\n')
     printf '%s' "$CANONICAL" | openssl dgst -sha256 -mac HMAC -macopt "hexkey:$SECRET_HEX" -binary | openssl enc -base64 -A
 }
