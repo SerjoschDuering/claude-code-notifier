@@ -221,6 +221,12 @@ Run this command (credentials are already embedded):
 \`\`\`bash
 cat > ~/.claude-approve-hook.sh << 'HOOKEOF'
 #!/bin/bash
+# Debug timing log - check /tmp/claude-approve-timing.log for performance data
+DEBUG_LOG="/tmp/claude-approve-timing.log"
+log_time() { echo "$(date +%s.%N) [$1] $2" >> "$DEBUG_LOG"; }
+START_TIME=$(date +%s.%N)
+log_time "START" "Hook invoked"
+
 PAIRING_ID="${pairingId}"
 PAIRING_SECRET="${pairingSecret}"
 SERVER_URL="${sanitizedWorkerUrl}"
@@ -228,25 +234,52 @@ FOCUS_MODE_NAME="claude remote approve"
 SESSION_CACHE="/tmp/claude-approve-cache-$PPID.json"
 ALLOW='{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow","permissionDecisionReason":"Approved via notification"}}'
 DENY='{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Denied via notification"}}'
-command -v jq &>/dev/null || { echo "$ALLOW"; exit 0; }
-command -v curl &>/dev/null || { echo "$ALLOW"; exit 0; }
-command -v openssl &>/dev/null || { echo "$ALLOW"; exit 0; }
-command -v xxd &>/dev/null || { echo "$ALLOW"; exit 0; }
+
+command -v jq &>/dev/null || { log_time "EXIT" "jq missing"; echo "$ALLOW"; exit 0; }
+command -v curl &>/dev/null || { log_time "EXIT" "curl missing"; echo "$ALLOW"; exit 0; }
+command -v openssl &>/dev/null || { log_time "EXIT" "openssl missing"; echo "$ALLOW"; exit 0; }
+command -v xxd &>/dev/null || { log_time "EXIT" "xxd missing"; echo "$ALLOW"; exit 0; }
+log_time "DEPS" "Dependencies checked"
+
 INPUT=$(cat)
 TOOL=$(echo "$INPUT" | jq -r '.tool_name // "unknown"')
 TOOL_INPUT=$(echo "$INPUT" | jq -c '.tool_input // {}')
 CWD=$(echo "$INPUT" | jq -r '.cwd // ""')
+log_time "INPUT" "Parsed input: tool=$TOOL"
+
+# TIMING CRITICAL: shortcuts run can take 100-500ms
+FOCUS_START=$(date +%s.%N)
 FOCUS_MODE=$(shortcuts run "Get Current Focus" 2>/dev/null | tr -d '\\n')
-[[ "$FOCUS_MODE" != "$FOCUS_MODE_NAME" ]] && exit 1
-if [ -f "$SESSION_CACHE" ]; then
-    jq -e '.approvals."session-all"' "$SESSION_CACHE" &>/dev/null && { echo "$ALLOW"; exit 0; }
-    jq -e ".approvals.\\"tool:$TOOL\\"" "$SESSION_CACHE" &>/dev/null && { echo "$ALLOW"; exit 0; }
+FOCUS_END=$(date +%s.%N)
+FOCUS_DURATION=$(echo "$FOCUS_END - $FOCUS_START" | bc)
+log_time "FOCUS" "Shortcuts took ${FOCUS_DURATION}s, result='$FOCUS_MODE'"
+
+if [[ "$FOCUS_MODE" != "$FOCUS_MODE_NAME" ]]; then
+    TOTAL=$(echo "$(date +%s.%N) - $START_TIME" | bc)
+    log_time "EXIT" "Focus mismatch, falling back to CLI (total: ${TOTAL}s)"
+    exit 1
 fi
+
+if [ -f "$SESSION_CACHE" ]; then
+    if jq -e '.approvals."session-all"' "$SESSION_CACHE" &>/dev/null; then
+        TOTAL=$(echo "$(date +%s.%N) - $START_TIME" | bc)
+        log_time "EXIT" "Session-all cached (total: ${TOTAL}s)"
+        echo "$ALLOW"; exit 0
+    fi
+    if jq -e ".approvals.\\"tool:$TOOL\\"" "$SESSION_CACHE" &>/dev/null; then
+        TOTAL=$(echo "$(date +%s.%N) - $START_TIME" | bc)
+        log_time "EXIT" "Tool cached (total: ${TOTAL}s)"
+        echo "$ALLOW"; exit 0
+    fi
+fi
+log_time "CACHE" "No cache hit"
+
 case "$TOOL" in
     Bash) DETAILS=$(echo "$TOOL_INPUT" | jq -r '.command // ""') ;;
     Write|Edit) DETAILS="$TOOL: $(echo "$TOOL_INPUT" | jq -r '.file_path // ""')" ;;
     *) DETAILS=$(echo "$TOOL_INPUT" | jq -c '.' | head -c 200) ;;
 esac
+
 create_signature() {
     local METHOD="$1" API_PATH="$2" BODY="$3" TS="$4" NONCE="$5" SECRET="$6"
     local BODY_HASH
@@ -255,21 +288,35 @@ create_signature() {
     local SECRET_HEX=$(printf '%s' "$SECRET" | openssl enc -d -base64 -A | xxd -p -c 256 | tr -d '\\n')
     printf '%s' "$CANONICAL" | openssl dgst -sha256 -mac HMAC -macopt "hexkey:$SECRET_HEX" -binary | openssl enc -base64 -A
 }
+
 REQUEST_ID=$(openssl rand -hex 16)
 NONCE=$(openssl rand -base64 16 | tr -d '\\n')
 TS=$(date +%s)
 BODY=$(jq -c -n --arg rid "$REQUEST_ID" --arg tool "$TOOL" --arg details "$DETAILS" --arg cwd "$CWD" '{requestId:$rid,payload:{tool:$tool,details:$details,cwd:$cwd}}')
 SIGNATURE=$(create_signature "POST" "/api/v2/request" "$BODY" "$TS" "$NONCE" "$PAIRING_SECRET")
+log_time "CRYPTO" "Signature created"
+
+POST_START=$(date +%s.%N)
 HTTP_CODE=$(curl -s -w "%{http_code}" -o /tmp/approve-resp-$$.json -X POST "$SERVER_URL/api/v2/request" -H "Content-Type: application/json" -H "X-Pairing-ID: $PAIRING_ID" -H "X-Timestamp: $TS" -H "X-Nonce: $NONCE" -H "Authorization: HMAC-SHA256 $SIGNATURE" -d "$BODY" --connect-timeout 5 --max-time 10)
-[[ "$HTTP_CODE" != "200" && "$HTTP_CODE" != "201" ]] && { rm -f /tmp/approve-resp-$$.json; echo "$DENY"; exit 0; }
-TIMEOUT=120; START=$(date +%s)
-while [ $(($(date +%s) - START)) -lt $TIMEOUT ]; do
+POST_DURATION=$(echo "$(date +%s.%N) - $POST_START" | bc)
+log_time "POST" "Request sent (${POST_DURATION}s), HTTP=$HTTP_CODE"
+
+if [[ "$HTTP_CODE" != "200" && "$HTTP_CODE" != "201" ]]; then
+    TOTAL=$(echo "$(date +%s.%N) - $START_TIME" | bc)
+    log_time "EXIT" "POST failed HTTP=$HTTP_CODE (total: ${TOTAL}s)"
+    rm -f /tmp/approve-resp-$$.json; echo "$DENY"; exit 0
+fi
+
+TIMEOUT=120; POLL_START=$(date +%s)
+while [ $(($(date +%s) - POLL_START)) -lt $TIMEOUT ]; do
     sleep 1
     NONCE=$(openssl rand -base64 16 | tr -d '\\n'); TS=$(date +%s)
     SIGNATURE=$(create_signature "GET" "/api/v2/decision/$REQUEST_ID" "" "$TS" "$NONCE" "$PAIRING_SECRET")
     RESP=$(curl -s "$SERVER_URL/api/v2/decision/$REQUEST_ID" -H "X-Pairing-ID: $PAIRING_ID" -H "X-Timestamp: $TS" -H "X-Nonce: $NONCE" -H "Authorization: HMAC-SHA256 $SIGNATURE" --connect-timeout 5 --max-time 10)
     STATUS=$(echo "$RESP" | jq -r '.data.status // "pending"')
     SCOPE=$(echo "$RESP" | jq -r '.data.scope // "once"')
+    log_time "POLL" "status=$STATUS scope=$SCOPE"
+
     if [ "$STATUS" = "allowed" ]; then
         rm -f /tmp/approve-resp-$$.json
         if [[ "$SCOPE" == "session-all" || "$SCOPE" == "session-tool" ]]; then
@@ -277,11 +324,17 @@ while [ $(($(date +%s) - START)) -lt $TIMEOUT ]; do
             [ "$SCOPE" = "session-all" ] && jq --argjson t "$(date +%s)" '.approvals."session-all"={"approved":true,"timestamp":$t}' "$SESSION_CACHE" > "$SESSION_CACHE.tmp" && mv "$SESSION_CACHE.tmp" "$SESSION_CACHE"
             [ "$SCOPE" = "session-tool" ] && jq --arg tool "$TOOL" --argjson t "$(date +%s)" '.approvals["tool:"+$tool]={"approved":true,"timestamp":$t}' "$SESSION_CACHE" > "$SESSION_CACHE.tmp" && mv "$SESSION_CACHE.tmp" "$SESSION_CACHE"
         fi
+        TOTAL=$(echo "$(date +%s.%N) - $START_TIME" | bc)
+        log_time "EXIT" "ALLOWED (total: ${TOTAL}s)"
         echo "$ALLOW"; exit 0
     elif [[ "$STATUS" == "denied" || "$STATUS" == "expired" ]]; then
+        TOTAL=$(echo "$(date +%s.%N) - $START_TIME" | bc)
+        log_time "EXIT" "DENIED/EXPIRED (total: ${TOTAL}s)"
         rm -f /tmp/approve-resp-$$.json; echo "$DENY"; exit 0
     fi
 done
+TOTAL=$(echo "$(date +%s.%N) - $START_TIME" | bc)
+log_time "EXIT" "TIMEOUT (total: ${TOTAL}s)"
 rm -f /tmp/approve-resp-$$.json; echo "$DENY"
 HOOKEOF
 chmod +x ~/.claude-approve-hook.sh
