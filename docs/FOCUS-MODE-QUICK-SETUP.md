@@ -388,7 +388,7 @@ fi
 
 - [Complete Setup Guide](../SETUP-PROMPT.md) - Full installation
 - [Shortcuts Automation Details](./SHORTCUTS-AUTOMATION.md) - In-depth guide
-- [Hook Setup](./HOOK-SETUP.md) - Hook configuration
+- [macOS Notification Setup](./MACOS-NOTIFICATION-SETUP.md) - Alternative notification method
 
 ---
 

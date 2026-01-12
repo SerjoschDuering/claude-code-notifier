@@ -302,4 +302,4 @@ shortcuts run "Set Focus" -i "Do Not Disturb"
 
 ---
 
-**Need help?** Check the main [README](../README.md) or [Hook Setup Guide](./HOOK-SETUP.md).
+**Need help?** Check the [Main Setup Guide](../SETUP-PROMPT.md) or [README](../README.md).

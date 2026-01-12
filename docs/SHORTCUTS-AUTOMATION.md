@@ -417,7 +417,7 @@ fi
 
 - [Complete Setup Guide](../SETUP-PROMPT.md) - Full installation
 - [Focus Mode Quick Setup](./FOCUS-MODE-QUICK-SETUP.md) - Visual step-by-step
-- [Hook Setup](./HOOK-SETUP.md) - Hook configuration details
+- [macOS Notification Setup](./MACOS-NOTIFICATION-SETUP.md) - Alternative notification method
 
 ---
 

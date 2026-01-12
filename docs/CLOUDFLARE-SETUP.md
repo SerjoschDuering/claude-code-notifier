@@ -415,6 +415,6 @@ Workers & Pages → Pages tab
 
 Once Cloudflare is set up:
 
-1. [Set up the CLI tool](./CLI-SETUP.md)
-2. [Pair your iPhone](./PAIRING-GUIDE.md)
-3. [Configure Claude Code hook](./HOOK-SETUP.md)
+1. Continue with [Main Setup Guide](../SETUP-PROMPT.md)
+2. [Set up Focus Mode automation](./FOCUS-MODE-QUICK-SETUP.md)
+3. [Learn about macOS notifications](./MACOS-NOTIFICATION-SETUP.md)
