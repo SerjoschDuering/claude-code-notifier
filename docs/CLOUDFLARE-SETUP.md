@@ -417,4 +417,3 @@ Once Cloudflare is set up:
 
 1. Continue with [Main Setup Guide](../SETUP-PROMPT.md)
 2. [Set up Focus Mode automation](./FOCUS-MODE-QUICK-SETUP.md)
-3. [Learn about macOS notifications](./MACOS-NOTIFICATION-SETUP.md)

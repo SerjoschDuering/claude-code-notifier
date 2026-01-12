@@ -380,20 +380,17 @@ fi
 - ✅ Setup complete? Test it thoroughly!
 - 📱 Make sure iPhone PWA is paired
 - 🔧 Customize Focus Mode (schedule, automation, etc.)
-- 📖 Read [Full Shortcuts Guide](./SHORTCUTS-AUTOMATION.md) for more details
 
 ---
 
 ## Related Documentation
 
 - [Complete Setup Guide](../SETUP-PROMPT.md) - Full installation
-- [Shortcuts Automation Details](./SHORTCUTS-AUTOMATION.md) - In-depth guide
-- [macOS Notification Setup](./MACOS-NOTIFICATION-SETUP.md) - Alternative notification method
+- [Cloudflare Deployment](./CLOUDFLARE-SETUP.md) - Backend setup
 
 ---
 
 ## Need Help?
 
-- **Full Shortcuts Guide**: [SHORTCUTS-AUTOMATION.md](./SHORTCUTS-AUTOMATION.md)
 - **Complete Setup**: [SETUP-PROMPT.md](../SETUP-PROMPT.md)
 - **GitHub Issues**: https://github.com/SerjoschDuering/claude-code-notifier/issues
