@@ -194,30 +194,83 @@ function buildSetupPrompt(workerUrl: string, _pwaUrl: string, pairingId?: string
 
   // If no credentials, user hasn't paired yet
   if (!pairingId || !pairingSecret) {
-    return `You need to pair your iPhone first before running this setup.
+    return `The user needs to pair their iPhone first before running this setup.
 
-1. Open the PWA on your iPhone
-2. Tap "Pair Device"
-3. After pairing, go to Settings and tap "Setup"
-4. Copy the setup prompt from there (it will have your credentials embedded)`;
+Tell the user:
+> Please pair your iPhone before running setup:
+> 1. Open the PWA on your iPhone
+> 2. Tap "Pair Device"
+> 3. After pairing, go to Settings and tap "Setup"
+> 4. Copy the setup prompt from there
+
+The prompt will have credentials embedded once pairing is complete.`;
   }
 
-  return `Install Claude Code Approver - this sends approval requests to my iPhone instead of CLI prompts.
+  return `You are helping the user install Claude Code Approver - a tool that sends Claude Code approval requests to their iPhone via push notifications instead of CLI prompts.
 
-**Credentials are already embedded below - just execute the steps.**
+**IMPORTANT FOR YOU (Claude Code AI):**
+- Credentials are already embedded in this prompt
+- Your job is to execute the setup steps
+- Ask the user questions when indicated
+- Wait for user confirmation before proceeding with manual steps
+
+---
+
+## How Focus Mode Routing Works (Explain to User First)
+
+Before starting, explain this to the user:
+
+> This system uses macOS **Focus Mode** to automatically route approval requests:
+>
+> 1. **Focus Mode: "claude remote approve"** → iPhone push notifications (what we're setting up)
+> 2. **Focus Mode OFF (or any other name)** → Claude Code CLI prompts (default behavior)
+>
+> When the Focus Mode "claude remote approve" is active, approval requests go to your iPhone.
+> When it's off, you'll see normal CLI prompts in the terminal.
+>
+> You can switch between these anytime by enabling/disabling the Focus Mode.
+
+---
+
+## Ask User Preferences
+
+Before starting installation, ask the user:
+
+**Question 1:** "What Focus Mode name do you want to use?"
+- Recommended: "claude remote approve" (this is what most users use)
+- Custom: You can choose your own name (must match exactly when you create it)
+
+**Question 2:** "Have you already installed the 'Get Current Focus' shortcut?"
+- Yes → I'll skip the installation step
+- No → I'll provide the link and wait for you to install it
+
+Store their answers and use them throughout the setup.
+
+---
 
 ## STEP 1: Check Dependencies
 
-Run this first:
+Run this command to check for required tools:
+
 \`\`\`bash
 echo "Checking dependencies..." && for cmd in jq curl openssl xxd; do command -v $cmd &>/dev/null && echo "✓ $cmd" || echo "✗ $cmd MISSING"; done
 \`\`\`
 
-If any are missing, tell me to install them with \`brew install <name>\` and wait for me to confirm.
+If any are missing, tell the user:
+> You're missing: [list missing tools]
+>
+> Install them with: \`brew install jq curl openssl xxd\`
+>
+> Let me know when you've installed them, then I'll re-check.
+
+Wait for user confirmation, then re-run the check.
+
+---
 
 ## STEP 2: Create Hook Script
 
-Run this command (credentials are already embedded):
+Create the hook script with embedded credentials:
+
 \`\`\`bash
 cat > ~/.claude-approve-hook.sh << 'HOOKEOF'
 #!/bin/bash
@@ -340,60 +393,236 @@ HOOKEOF
 chmod +x ~/.claude-approve-hook.sh
 \`\`\`
 
-Then verify:
+**IMPORTANT:** If the user chose a custom Focus Mode name in Question 1, you need to update line 11 of the hook script above. Change \`FOCUS_MODE_NAME="claude remote approve"\` to their chosen name before creating the file.
+
+Verify the hook was created:
 \`\`\`bash
 ls -la ~/.claude-approve-hook.sh && echo "✓ Hook created"
 \`\`\`
 
-## STEP 3: Configure Settings
+---
 
-Check if settings exist:
+## STEP 3: Configure Claude Code Settings
+
+Check if the user already has Claude Code settings:
+
 \`\`\`bash
 [ -f ~/.claude/settings.json ] && echo "EXISTS:" && cat ~/.claude/settings.json || echo "DOES NOT EXIST"
 \`\`\`
 
-If it does NOT exist, create it:
+**If settings file DOES NOT EXIST:**
+
+Create it with the hook configuration:
+
 \`\`\`bash
 mkdir -p ~/.claude && cat > ~/.claude/settings.json << 'EOF'
 {"hooks":{"PreToolUse":[{"matcher":"Bash|Write|Edit|NotebookEdit","hooks":[{"type":"command","command":"$HOME/.claude-approve-hook.sh"}]}]}}
 EOF
 \`\`\`
 
-If it EXISTS, you need to merge the hooks - ask me how I want to handle it.
+**If settings file EXISTS:**
 
-## STEP 4: Manual Steps (tell me to do these)
+Tell the user:
+> Your Claude Code settings file already exists.
+>
+> I need to add the hook configuration to it. Can I overwrite your settings.json?
+> Or would you like to manually merge the hook settings?
 
-Tell me:
-> **Do these manually:**
-> 1. **Install Shortcut**: Open https://www.icloud.com/shortcuts/b13ac25ce397415097a80cb6fe28fbad on your Mac and click "Add Shortcut"
-> 2. **Create Focus Mode**: System Settings → Focus → "+" → Custom → Name it exactly: \`claude remote approve\`
-> 3. Tell me when done
+Wait for user response. If they approve, run the same create command above.
 
-Wait for my confirmation before continuing.
+---
 
-After I confirm, verify shortcut works:
+## STEP 4: Install Shortcut (Manual - Only if User Answered "No")
+
+**(Skip this if the user answered "Yes" to Question 2)**
+
+Tell the user:
+> I cannot install Shortcuts programmatically. You need to do this manually:
+>
+> 1. Click this link on your Mac: https://www.icloud.com/shortcuts/b13ac25ce397415097a80cb6fe28fbad
+> 2. The Shortcuts app will open
+> 3. Click "Add Shortcut"
+> 4. The shortcut "Get Current Focus" should now appear in your Shortcuts library
+>
+> **Important:** You must do this on your Mac (not iPhone) where Claude Code runs.
+>
+> Let me know when you've added it (type "done" or "continue")
+
+Wait for user confirmation.
+
+After they confirm, verify it works:
+
 \`\`\`bash
-shortcuts run "Get Current Focus" 2>&1 || echo "(no focus active - OK)"
+shortcuts run "Get Current Focus" 2>&1
 \`\`\`
 
-## STEP 5: Restart Required
+Explain the output to the user:
+> If you see a Focus Mode name (like "Do Not Disturb"), the shortcut works!
+> If you see an error or empty output, that's normal - it means no Focus Mode is active right now.
 
-Tell me:
-> **IMPORTANT: You must restart Claude Code now.**
-> Close this session and run \`claude\` again.
-> After restart, paste this prompt again and say "continue from step 6"
+---
 
-## STEP 6: Test (after restart)
+## STEP 5: Create Focus Mode (Manual)
 
-Ask me to enable/disable Focus Mode and test:
+Tell the user:
+> I cannot create Focus Modes programmatically. You need to do this manually:
+>
+> 1. Open **System Settings** → **Focus**
+> 2. Click the **"+"** button (bottom left)
+> 3. Select **"Custom"**
+> 4. Name it exactly: **[their chosen name from Question 1]**
+>    - Default: \`claude remote approve\`
+>    - **CRITICAL:** The name must match EXACTLY (case-sensitive, no typos, no extra spaces)
+> 5. Click **"Done"**
+> 6. You can customize when it activates (optional), but for testing, we'll enable it manually
+>
+> Let me know when you've created it (type "done" or "continue")
 
-1. **Focus OFF test**: Ask me to disable Focus Mode, then run \`echo "test"\` - I should see CLI prompt
-2. **Focus ON test**: Ask me to enable Focus Mode, then run \`echo "test"\` - I should get iPhone notification
+Wait for user confirmation.
 
-If both work, tell me:
-> **Setup complete!** Focus Mode ON = iPhone notifications, Focus Mode OFF = CLI prompts
+---
 
-Server: ${sanitizedWorkerUrl}`;
+## STEP 6: Restart Claude Code (Required)
+
+Explain to the user:
+> **IMPORTANT:** Claude Code only loads settings.json when it starts.
+> Since we just created/modified it, you must restart for the hook to work.
+>
+> **How to restart:**
+> 1. Exit this session (press Ctrl+C or type "exit")
+> 2. Start a new Claude Code session: \`claude\`
+> 3. The hook will now be active
+>
+> **After restarting:** Paste this same setup prompt again and say "continue from testing"
+
+---
+
+## STEP 7: Testing (Run After Restart)
+
+**(User should restart first and paste prompt again before running these tests)**
+
+### Test 1: Default CLI Behavior (Focus Mode OFF)
+
+Tell the user:
+> Let's test the default CLI behavior first.
+>
+> **Make sure NO Focus Mode is active:**
+> - Check Control Center (menu bar) → Focus icon should NOT be highlighted
+> - Or check System Settings → Focus → Nothing should be enabled
+>
+> Let me know when you're ready (type "ready")
+
+Wait for confirmation. Then run:
+
+\`\`\`bash
+echo "test - cli fallback"
+\`\`\`
+
+**Expected behavior - explain to user:**
+> I (Claude Code) should pause and show you a prompt in the terminal:
+> \`Approve Bash command: echo "test - cli fallback"? (y/n):\`
+>
+> This is the default Claude Code behavior when no Focus Mode is active.
+> Type "n" to deny (we're just testing).
+>
+> Did you see the CLI prompt? (yes/no)
+
+Wait for their confirmation.
+
+---
+
+### Test 2: iPhone Push Notifications (Focus Mode ON)
+
+Tell the user:
+> Now let's test iPhone notifications.
+>
+> **Enable your Focus Mode:**
+> 1. Click the Focus icon in Control Center (menu bar)
+> 2. Select "[their chosen Focus Mode name]"
+> 3. The icon should now be highlighted (Focus Mode active)
+>
+> Let me know when you've enabled it (type "ready")
+
+Wait for confirmation. Then run:
+
+\`\`\`bash
+echo "test - iphone notification"
+\`\`\`
+
+**Expected behavior - explain to user:**
+> With Focus Mode active, here's what should happen:
+>
+> 1. I (Claude Code) will pause (no terminal prompt this time)
+> 2. Within 3-5 seconds: Your iPhone receives a push notification
+> 3. Notification shows: "Tool: Bash" and "Command: echo test - iphone notification"
+> 4. Tap the notification → PWA opens with Approve/Deny buttons
+> 5. Tap "Approve Once" → I continue execution
+>
+> Did you receive the push notification on your iPhone? (yes/no)
+
+Wait for response.
+
+**If they say NO:**
+
+Help troubleshoot:
+> Let's check what went wrong. Run this command:
+
+\`\`\`bash
+shortcuts run "Get Current Focus"
+\`\`\`
+
+> What does it show?
+> - Expected: "[their chosen Focus Mode name]"
+> - If it shows something different or empty, the Focus Mode isn't active or the name doesn't match
+
+Also check timing logs:
+
+\`\`\`bash
+tail -20 /tmp/claude-approve-timing.log
+\`\`\`
+
+> Send me the output and I'll help debug.
+
+**If they say YES:**
+
+> Great! Now approve the request in the PWA (tap "Approve Once").
+> The test command should complete.
+
+---
+
+## STEP 8: Completion
+
+If all tests pass, tell the user:
+
+> **Setup Complete!** 🎉
+>
+> Here's how to use it:
+>
+> - **Focus Mode "[their name]" ON** → iPhone push notifications
+> - **Focus Mode OFF (or any other)** → Claude Code CLI prompts (default)
+>
+> You can switch between these anytime by enabling/disabling the Focus Mode.
+>
+> **Pro Tip:** Automate it with Focus Mode schedules:
+> - System Settings → Focus → [Your Mode] → Add Schedule
+> - Example: Auto-enable when using certain apps, at certain times, or locations
+>
+> **Troubleshooting:**
+> - Check timing logs: \`tail /tmp/claude-approve-timing.log\`
+> - Verify Focus Mode: \`shortcuts run "Get Current Focus"\`
+> - Test hook manually: \`echo '{"tool_name":"Bash","tool_input":{"command":"ls"}}' | ~/.claude-approve-hook.sh\`
+
+---
+
+## Setup Summary
+
+**Credentials:**
+- Server: ${sanitizedWorkerUrl}
+- Pairing ID: ${pairingId}
+- Hook: ~/.claude-approve-hook.sh
+- Settings: ~/.claude/settings.json
+
+**Focus Mode:** [their chosen name from Question 1]`;
 }
 
 async function loadPendingRequests(pairingData: { pairingId: string; pairingSecret: string }) {
