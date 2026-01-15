@@ -177,7 +177,7 @@ EOF
 ### 5.1 Navigate to Worker Directory
 
 ```bash
-cd /Users/Joo/01_Projects/ClaudeCodeNotifyer/packages/worker
+cd claude-code-notifier/packages/worker
 ```
 
 ### 5.2 Install Dependencies
@@ -249,7 +249,7 @@ You should see:
 ### 6.1 Navigate to PWA Directory
 
 ```bash
-cd /Users/Joo/01_Projects/ClaudeCodeNotifyer/packages/pwa
+cd claude-code-notifier/packages/pwa
 ```
 
 ### 6.2 Install Dependencies
@@ -354,7 +354,7 @@ Run `wrangler login` again.
 
 Make sure you're in the right directory:
 ```bash
-cd /Users/Joo/01_Projects/ClaudeCodeNotifyer/packages/worker
+cd claude-code-notifier/packages/worker
 ```
 
 ### "Error: Missing required secret"

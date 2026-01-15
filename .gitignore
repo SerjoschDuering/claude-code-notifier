@@ -29,3 +29,9 @@ pnpm-debug.log*
 
 # Config with secrets
 .claude-approve/
+
+# pnpm
+.pnpm-approved-builds
+
+# Local developer notes (not for public repo)
+CLAUDE.md

@@ -2,257 +2,308 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="theme-color" content="#6366f1">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#0a0c10">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Claude Approve">
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="apple-touch-icon" href="/icon-192.png">
   <title>Claude Code Approver</title>
+
+  <!-- Fonts: Outfit for UI, JetBrains Mono for code -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+
   <link rel="stylesheet" href="/src/styles.css">
 </head>
 <body>
-  <div class="container">
-    <header>
-      <div class="logo">⚡</div>
-      <div class="header-text">
-        <h1>Claude Code Approver</h1>
-        <a href="https://github.com/SerjoschDuering/claude-code-notifier" target="_blank" rel="noopener" class="open-source-badge">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
-          </svg>
-          Open Source
-        </a>
+  <div class="app">
+    <!-- Ambient background -->
+    <div class="ambient-glow"></div>
+
+    <!-- Header - minimal, always visible -->
+    <header class="header">
+      <div class="header-brand">
+        <span class="header-icon">⚡</span>
+        <span class="header-title">Claude Approve</span>
       </div>
       <div class="header-actions">
-        <button id="info-btn" class="header-btn" title="How it works">
+        <button id="settings-trigger" class="icon-btn" aria-label="Settings">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"></circle>
-            <line x1="12" y1="16" x2="12" y2="12"></line>
-            <line x1="12" y1="8" x2="12.01" y2="8"></line>
-          </svg>
-        </button>
-        <button id="setup-btn" class="header-btn" title="Setup Instructions">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
-            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
-          </svg>
-        </button>
-        <button id="settings-btn" class="header-btn hidden" title="Settings">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="3"></circle>
-            <path d="M12 1v6M12 17v6M4.22 4.22l4.24 4.25M15.54 15.54l4.24 4.25M1 12h6M17 12h6M4.22 19.78l4.24-4.24M15.54 8.46l4.24-4.24"></path>
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M12 1v6M12 17v6M4.22 4.22l4.24 4.25M15.54 15.54l4.24 4.25M1 12h6M17 12h6M4.22 19.78l4.24-4.24M15.54 8.46l4.24-4.24"/>
           </svg>
         </button>
       </div>
     </header>
 
-    <!-- Floating Tip Button -->
-    <div class="floating-actions">
-      <span class="floating-label">Like it?</span>
-      <button class="floating-btn floating-btn--tip" id="floatingTip" aria-label="Support development">
-        <span>☕</span>
-      </button>
-    </div>
+    <!-- Main Content Area -->
+    <main class="main">
 
-    <!-- Tip Popover -->
-    <div class="floating-tip-popover" id="tipPopover">
-      <div class="tip-popover-header">
-        <span>Did it help you?</span>
-        <button class="tip-popover-close" id="closeTipPopover">✕</button>
-      </div>
-      <p class="tip-popover-desc">This tool is open source and free to use. Feel free to buy me a coffee if you'd like!</p>
-      <div class="tip-popover-options">
-        <a href="#" class="tip-option" data-tier="small">
-          <span class="tip-option-icon">☕</span>
-          <span class="tip-option-label">Buy Coffee</span>
-          <span class="tip-option-price">$2</span>
-        </a>
-        <a href="#" class="tip-option" data-tier="custom">
-          <span class="tip-option-icon">💝</span>
-          <span class="tip-option-label">Custom Amount</span>
-          <span class="tip-option-price">Your choice</span>
-        </a>
-      </div>
-    </div>
-
-    <!-- Settings Modal -->
-    <div id="settings-modal" class="modal hidden">
-      <div class="modal-backdrop"></div>
-      <div class="modal-content">
-        <div class="modal-header">
-          <h2>Settings</h2>
-          <button class="modal-close" id="close-settings">✕</button>
-        </div>
-        <div class="modal-body">
-          <div class="settings-row">
-            <span class="settings-label">Status</span>
-            <span class="settings-value">
-              <span class="status-dot connected" id="status-dot"></span>
-              <span id="status-text">Connected</span>
-            </span>
-          </div>
-          <div class="settings-row">
-            <span class="settings-label">Pairing ID</span>
-            <code id="pairing-id-display">—</code>
-          </div>
-          <div class="settings-actions">
-            <button id="test-notification" class="settings-btn">🔔 Test Notification</button>
-            <button id="unpair" class="settings-btn danger">Unpair Device</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Installation Guide Modal -->
-    <div id="install-modal" class="modal hidden">
-      <div class="modal-backdrop"></div>
-      <div class="modal-content install-modal-content">
-        <div class="modal-header">
-          <h2>How to Use This Service</h2>
-          <button class="modal-close" id="close-install">✕</button>
-        </div>
-        <div class="modal-body">
-          <p class="install-intro">Get push notifications on your iPhone when Claude Code needs approval. Takes 2 minutes.</p>
-
-          <h3 class="install-step-title">1. Add to iPhone Home Screen</h3>
-          <div class="install-step-content">
-            <p class="install-warning">⚠️ Must be added to Home Screen for notifications to work</p>
-            <ol class="install-steps">
-              <li>Open in <strong>Safari</strong> on iPhone → <strong>Share</strong> → <strong>"Add to Home Screen"</strong></li>
-              <li>Open app <strong>FROM Home Screen</strong> (not Safari)</li>
-            </ol>
-          </div>
-
-          <h3 class="install-step-title">2. Setup Claude Code</h3>
-          <div class="install-step-content">
-            <p>Copy this prompt → Paste into Claude Code → Done!</p>
-            
-            <div class="prompt-actions">
-              <button id="copy-setup-prompt" class="copy-btn primary">📋 Copy Prompt</button>
-              <button id="toggle-prompt-preview" class="copy-btn secondary">👁️ Preview</button>
+      <!-- ========== WELCOME MODAL ========== -->
+      <div id="welcome-modal" class="welcome-overlay hidden">
+        <div class="welcome-card">
+          <img src="/assets/cc-approval-b.jpg" alt="Claude Code approval flow" class="welcome-image">
+          <div class="welcome-content">
+            <h1 class="welcome-title">Claude Code Approver</h1>
+            <p class="welcome-tagline">Remote approvals for Claude Code</p>
+            <p class="welcome-desc">
+              Get push notifications on your iPhone when Claude Code needs permission to run commands, write files, or make changes. Approve or deny from anywhere.
+            </p>
+            <div class="welcome-features">
+              <div class="welcome-feature">
+                <span class="feature-emoji">🔐</span>
+                <span>End-to-end secure</span>
+              </div>
+              <div class="welcome-feature">
+                <span class="feature-emoji">⚡</span>
+                <span>Instant notifications</span>
+              </div>
+              <div class="welcome-feature">
+                <span class="feature-emoji">🆓</span>
+                <span>Free & open source</span>
+              </div>
             </div>
-            
-            <div class="code-snippet collapsed" id="prompt-preview">
-              <pre><code id="setup-prompt-modal"></code></pre>
-            </div>
-            
-            <p class="install-note">Claude Code will create the hook, configure settings, and show a QR code.</p>
-          </div>
-
-          <h3 class="install-step-title">3. Pair iPhone</h3>
-          <div class="install-step-content">
-            <ol class="install-steps">
-              <li>Tap <strong>"Pair Device"</strong> in the iPhone app</li>
-              <li>Scan QR code from Claude Code</li>
-              <li>Enable notifications when prompted</li>
-            </ol>
-            <p class="install-success">✅ Done! You'll get notifications for all Claude Code actions.</p>
-          </div>
-
-          <div class="install-divider"></div>
-
-          <p class="install-note" style="text-align: center;">
-            <a href="https://github.com/SerjoschDuering/claude-code-notifier#readme" target="_blank" rel="noopener">
-              Want to self-host? View deployment guide →
+            <a href="https://github.com/SerjoschDuering/claude-code-notifier" target="_blank" rel="noopener" class="github-badge">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+              </svg>
+              <span>Open Source on GitHub</span>
             </a>
-          </p>
-        </div>
-      </div>
-    </div>
-
-    <!-- Info Modal -->
-    <div id="info-modal" class="modal hidden">
-      <div class="modal-backdrop"></div>
-      <div class="modal-content info-modal-content">
-        <div class="modal-header">
-          <h2>Privacy & How It Works</h2>
-          <button class="modal-close" id="close-info">✕</button>
-        </div>
-        <div class="modal-body info-modal-body">
-          <div class="info-requirement">
-            <h3>⚠️ Critical Requirement</h3>
-            <p><strong>You must add this app to your iPhone Home Screen</strong> for push notifications to work reliably. Open this page in Safari, tap Share → "Add to Home Screen", then launch the app from your Home Screen (not Safari).</p>
-          </div>
-          
-          <img src="/assets/cc-approval-a.png" alt="Claude approval loop" class="info-illustration">
-          
-          <h3 class="info-section-title">How It Works</h3>
-          <p>When Claude Code wants to do something (run a command, write a file), it sends a notification to this server, which immediately pushes it to your phone. You tap approve or deny, and Claude Code continues or stops.</p>
-          
-          <div class="info-privacy-card">
-            <h3>Your Privacy</h3>
-            <p><strong>Your approval requests are automatically deleted after 60 seconds.</strong> They only exist long enough for you to make a decision. No data is stored permanently, no analytics are collected, and no tracking happens. This server just relays messages between Claude Code and your phone.</p>
-          </div>
-
-          <div class="info-privacy-card">
-            <h3>Open Source</h3>
-            <p>This tool is completely open source. You can see exactly how it works, or even run your own private instance if you prefer. <a href="https://github.com/SerjoschDuering/claude-code-notifier" target="_blank" rel="noopener">View on GitHub</a></p>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <main id="main-content">
-      <!-- Not Paired - Clean Onboarding -->
-      <div id="not-paired" class="onboarding hidden">
-        <div class="onboarding-hero">
-          <img src="/assets/cc-approval-b.jpg" alt="Claude Code approval flow" class="onboarding-image">
-          <p class="onboarding-description"><strong>Remote Approvals for Claude Code.</strong> Approve or deny Claude Code permission requests from anywhere. Get instant push notifications on your iPhone when Claude wants to run commands, write files, or make changes.</p>
-        </div>
-        
-        <div class="onboarding-cta">
-          <h3>Quick Setup</h3>
-          <p class="onboarding-summary">Add to Home Screen → Paste prompt into Claude Code → Scan QR code</p>
-          <p class="onboarding-note">⚠️ Must add to Home Screen for notifications</p>
-          <div class="onboarding-actions">
-            <button id="install-guide-btn" class="button primary large">View Setup Guide</button>
-            <a href="/pair.html" class="button secondary">Already Setup? Pair</a>
-          </div>
-        </div>
-
-        <div class="onboarding-features">
-          <div class="feature-item">
-            <div class="feature-icon">🔐</div>
-            <h4>Secure</h4>
-            <p>HMAC-signed requests with nonce protection</p>
-          </div>
-          <div class="feature-item">
-            <div class="feature-icon">⚡</div>
-            <h4>Fast</h4>
-            <p>Edge-deployed on Cloudflare Workers</p>
-          </div>
-          <div class="feature-item">
-            <div class="feature-icon">🆓</div>
-            <h4>Free</h4>
-            <p>Runs entirely on free tier</p>
+            <p class="welcome-trust">Your credentials are generated locally — only you can see them</p>
+            <button id="welcome-start" class="btn-primary btn-glow">
+              <span class="btn-text">Get Started</span>
+              <span class="btn-icon">→</span>
+            </button>
           </div>
         </div>
       </div>
 
-      <!-- Paired View -->
-      <div id="paired-view" class="paired-view hidden">
-        <!-- Push Permission (compact banner) -->
-        <div id="push-permission" class="push-banner hidden">
-          <span class="push-text">🔔 Enable push notifications</span>
-          <button id="enable-push" class="push-btn">Enable</button>
+      <!-- ========== ONBOARDING WIZARD ========== -->
+      <section id="onboarding" class="screen onboarding">
+        <!-- Progress indicator -->
+        <div class="wizard-progress">
+          <div class="progress-step active" data-step="1">
+            <span class="step-num">1</span>
+            <span class="step-label">Copy</span>
+          </div>
+          <div class="progress-line"></div>
+          <div class="progress-step" data-step="2">
+            <span class="step-num">2</span>
+            <span class="step-label">Install</span>
+          </div>
+          <div class="progress-line"></div>
+          <div class="progress-step" data-step="3">
+            <span class="step-num">3</span>
+            <span class="step-label">Notify</span>
+          </div>
         </div>
 
-        <!-- Pending Requests - Main Focus -->
-        <div id="pending-requests" class="pending-section">
-          <div class="pending-header">
-            <h2>Pending Requests</h2>
-            <button id="refresh-requests" class="refresh-btn" title="Refresh">↻</button>
+        <!-- Step 1: Copy Setup Prompt -->
+        <div id="step-1" class="wizard-step active">
+          <div class="step-hero">
+            <div class="hero-badge">
+              <span class="badge-pulse"></span>
+              <span class="badge-icon">📋</span>
+            </div>
+            <h1 class="hero-title">Copy Setup Prompt</h1>
+            <p class="hero-desc">Paste this into Claude Code to configure the hook with your unique credentials.</p>
           </div>
-          <div id="requests-list" class="requests-scroll">
-            <p class="no-requests">No pending requests</p>
+
+          <div class="action-card">
+            <button id="copy-prompt-btn" class="btn-primary btn-glow">
+              <span class="btn-icon">📋</span>
+              <span class="btn-text">Copy to Clipboard</span>
+            </button>
+            <p class="action-hint">Your credentials are already embedded</p>
+          </div>
+
+          <details class="prompt-preview">
+            <summary class="preview-toggle">
+              <span>Preview prompt</span>
+              <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </summary>
+            <pre class="preview-code"><code id="prompt-code"></code></pre>
+          </details>
+
+          <button id="next-step-1" class="btn-secondary">
+            I've pasted into Claude Code →
+          </button>
+        </div>
+
+        <!-- Step 2: Add to Home Screen -->
+        <div id="step-2" class="wizard-step">
+          <div class="step-hero">
+            <div class="hero-badge">
+              <span class="badge-icon">📱</span>
+            </div>
+            <h1 class="hero-title">Add to Home Screen</h1>
+            <p class="hero-desc">One quick step so you can receive push notifications.</p>
+          </div>
+
+          <div class="why-pwa">
+            <p class="why-title">Why this step?</p>
+            <p class="why-text">Safari can't send push notifications — but Home Screen apps can. Adding this takes 5 seconds and uses no storage.</p>
+          </div>
+
+          <div class="install-guide">
+            <div class="guide-step">
+              <span class="guide-num">1</span>
+              <p>Tap the <strong>Share</strong> button <span class="share-icon">⎋</span> in Safari</p>
+            </div>
+            <div class="guide-step">
+              <span class="guide-num">2</span>
+              <p>Scroll and tap <strong>"Add to Home Screen"</strong></p>
+            </div>
+            <div class="guide-step">
+              <span class="guide-num">3</span>
+              <p>Then <strong>open from Home Screen</strong> (not Safari)</p>
+            </div>
+          </div>
+
+          <div class="pwa-check" id="pwa-check">
+            <span class="check-icon" id="pwa-icon">⚠️</span>
+            <span class="check-text" id="pwa-text">Still in Safari — add to Home Screen first</span>
+          </div>
+
+          <div class="step-actions">
+            <button id="prev-step-2" class="btn-ghost">← Back</button>
+            <button id="next-step-2" class="btn-secondary">Continue →</button>
           </div>
         </div>
 
-      </div>
+        <!-- Step 3: Enable Notifications -->
+        <div id="step-3" class="wizard-step">
+          <div class="step-hero">
+            <div class="hero-badge">
+              <span class="badge-icon">🔔</span>
+            </div>
+            <h1 class="hero-title">Enable Notifications</h1>
+            <p class="hero-desc">Get instant alerts when Claude Code needs approval.</p>
+          </div>
+
+          <div class="action-card">
+            <button id="enable-notifications-btn" class="btn-primary btn-glow">
+              <span class="btn-icon">🔔</span>
+              <span class="btn-text">Enable Push Notifications</span>
+            </button>
+          </div>
+
+          <div class="notification-status" id="notification-status">
+            <span class="status-icon">⏳</span>
+            <span class="status-text">Notifications not enabled</span>
+          </div>
+
+          <div class="step-actions">
+            <button id="prev-step-3" class="btn-ghost">← Back</button>
+            <button id="finish-setup" class="btn-secondary">Finish Setup →</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========== DASHBOARD (After Setup) ========== -->
+      <section id="dashboard" class="screen dashboard hidden">
+        <!-- Connection Status Bar -->
+        <div class="status-bar">
+          <div class="status-indicator">
+            <span class="status-dot" id="connection-dot"></span>
+            <span class="status-label" id="connection-label">Connected</span>
+          </div>
+          <button id="refresh-btn" class="icon-btn-sm" aria-label="Refresh">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="23 4 23 10 17 10"/>
+              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Push Permission Banner (if needed) -->
+        <div id="push-banner" class="push-banner hidden">
+          <span class="banner-icon">🔔</span>
+          <span class="banner-text">Enable notifications for approval alerts</span>
+          <button id="banner-enable-push" class="btn-sm">Enable</button>
+        </div>
+
+        <!-- Pending Requests -->
+        <div class="requests-container">
+          <h2 class="section-title">Pending Requests</h2>
+          <div id="requests-list" class="requests-list">
+            <div class="empty-state">
+              <span class="empty-icon">✨</span>
+              <p class="empty-text">No pending requests</p>
+              <p class="empty-hint">Requests appear when Claude Code needs approval</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
     </main>
 
+    <!-- ========== SETTINGS DRAWER ========== -->
+    <div id="settings-drawer" class="drawer hidden">
+      <div class="drawer-backdrop"></div>
+      <div class="drawer-panel">
+        <div class="drawer-header">
+          <h2>Settings</h2>
+          <button id="close-drawer" class="icon-btn" aria-label="Close">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="drawer-body">
+          <!-- Connection Info -->
+          <div class="settings-section">
+            <h3 class="settings-title">Connection</h3>
+            <div class="settings-row">
+              <span class="row-label">Status</span>
+              <span class="row-value">
+                <span class="status-dot connected" id="settings-status-dot"></span>
+                <span id="settings-status-text">Connected</span>
+              </span>
+            </div>
+            <div class="settings-row">
+              <span class="row-label">Pairing ID</span>
+              <code class="row-code" id="settings-pairing-id">—</code>
+            </div>
+          </div>
+
+          <!-- Actions -->
+          <div class="settings-section">
+            <h3 class="settings-title">Actions</h3>
+            <button id="test-notification-btn" class="settings-btn">
+              <span>🔔</span> Test Notification
+            </button>
+            <button id="copy-prompt-settings" class="settings-btn">
+              <span>📋</span> Copy Setup Prompt
+            </button>
+            <button id="unpair-btn" class="settings-btn danger">
+              <span>🗑️</span> Unpair Device
+            </button>
+          </div>
+
+          <!-- About -->
+          <div class="settings-section">
+            <h3 class="settings-title">About</h3>
+            <a href="https://github.com/SerjoschDuering/claude-code-notifier" target="_blank" rel="noopener" class="settings-link">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+              </svg>
+              View on GitHub
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toast-container" class="toast-container"></div>
   </div>
 
   <script type="module" src="/src/main.ts"></script>

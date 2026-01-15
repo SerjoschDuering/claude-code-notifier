@@ -266,6 +266,10 @@ PRs welcome! Please:
 
 MIT - see [LICENSE](LICENSE)
 
+## Disclaimer
+
+"Claude" and "Claude Code" are trademarks of Anthropic PBC. This project is an unofficial third-party tool that extends Claude Code functionality with remote approval notifications. It is not affiliated with, endorsed by, or maintained by Anthropic.
+
 ## Acknowledgments
 
 - [Cloudflare Workers](https://workers.cloudflare.com/) for serverless edge compute
