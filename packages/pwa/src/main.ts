@@ -289,8 +289,11 @@ function setupSettingsDrawer(pairingData: StoredPairingData) {
   });
 
   document.getElementById('copy-prompt-settings')?.addEventListener('click', async () => {
-    await copyToClipboard(buildSetupPrompt(pairingData));
-    showToast('✓ Copied', 'success');
+    console.log('[Settings] Copy button clicked');
+    const prompt = buildSetupPrompt(pairingData);
+    console.log('[Settings] Prompt length:', prompt?.length || 0);
+    const success = await copyToClipboard(prompt);
+    showToast(success ? '✓ Copied' : '✗ Copy failed', success ? 'success' : 'error');
   });
 
   document.getElementById('unpair-btn')?.addEventListener('click', async () => {
@@ -339,7 +342,20 @@ function urlBase64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
 // ============================================
 
 function buildSetupPrompt(p: StoredPairingData): string {
+  console.log('[buildSetupPrompt] Called with pairingData:', {
+    pairingId: p?.pairingId?.substring(0, 8) + '...',
+    hasSecret: !!p?.pairingSecret,
+    createdAt: p?.createdAt
+  });
+
+  if (!p || !p.pairingId || !p.pairingSecret) {
+    console.error('[buildSetupPrompt] ERROR: Invalid pairing data!', p);
+    return 'ERROR: No credentials found. Please reload the app or clear your browser data and try again.';
+  }
+
   const url = deriveWorkerUrl();
+  console.log('[buildSetupPrompt] Derived URL:', url);
+
   return `You are helping install Claude Code Approver - sends approval requests to iPhone via push notifications.
 
 **Credentials embedded - execute these steps:**
@@ -458,9 +474,59 @@ function deriveWorkerUrl(): string {
 // UTILITIES
 // ============================================
 
-async function copyToClipboard(text: string) {
-  try { await navigator.clipboard.writeText(text); }
-  catch { const t = document.createElement('textarea'); t.value = text; document.body.appendChild(t); t.select(); document.execCommand('copy'); document.body.removeChild(t); }
+async function copyToClipboard(text: string): Promise<boolean> {
+  console.log('[copyToClipboard] Text length:', text?.length || 0);
+  console.log('[copyToClipboard] First 100 chars:', text?.substring(0, 100));
+
+  if (!text || text.length === 0) {
+    console.error('[copyToClipboard] ERROR: Empty text!');
+    alert('Error: Setup prompt is empty. Please reload the app.');
+    return false;
+  }
+
+  // Try modern clipboard API first
+  try {
+    await navigator.clipboard.writeText(text);
+    console.log('[copyToClipboard] Success via navigator.clipboard');
+    return true;
+  } catch (err) {
+    console.warn('[copyToClipboard] navigator.clipboard failed:', err);
+  }
+
+  // Fallback for iOS Safari
+  try {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.cssText = 'position:fixed;left:-9999px;top:0;';
+    textArea.setAttribute('readonly', ''); // Prevent keyboard popup on iOS
+    document.body.appendChild(textArea);
+
+    // iOS specific selection
+    const range = document.createRange();
+    range.selectNodeContents(textArea);
+    const selection = window.getSelection();
+    if (selection) {
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+    textArea.setSelectionRange(0, text.length); // For iOS
+
+    const success = document.execCommand('copy');
+    document.body.removeChild(textArea);
+
+    if (success) {
+      console.log('[copyToClipboard] Success via execCommand fallback');
+      return true;
+    } else {
+      console.error('[copyToClipboard] execCommand returned false');
+      alert('Copy failed. Please use the preview below and copy manually.');
+      return false;
+    }
+  } catch (err) {
+    console.error('[copyToClipboard] Fallback failed:', err);
+    alert('Copy failed. Please use the preview below and copy manually.');
+    return false;
+  }
 }
 
 function showToast(msg: string, type: 'success' | 'error' = 'success') {

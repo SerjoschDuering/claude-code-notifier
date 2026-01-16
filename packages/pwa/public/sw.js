@@ -1,10 +1,8 @@
 // Service Worker for Claude Code Approver PWA
 
-const CACHE_NAME = 'claude-approver-v3';
+const CACHE_NAME = 'claude-approver-v4';
 const STATIC_ASSETS = [
   '/',
-  '/pair.html',
-  '/approve.html',
   '/manifest.webmanifest',
 ];
 

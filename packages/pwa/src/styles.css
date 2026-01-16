@@ -1206,9 +1206,13 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--space-md);
+  padding: var(--space-sm);
+  padding-top: calc(var(--safe-top) + var(--space-sm));
+  padding-bottom: calc(var(--safe-bottom) + var(--space-sm));
   animation: fadeIn 0.4s ease;
   transition: opacity 0.3s ease, visibility 0.3s ease;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .welcome-overlay.hiding {
@@ -1223,12 +1227,16 @@ body {
 .welcome-card {
   width: 100%;
   max-width: 400px;
+  max-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - var(--space-md));
   background: var(--bg-elevated);
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius-xl);
+  border-radius: var(--radius-lg);
   overflow: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   box-shadow: var(--shadow-lg), 0 0 60px rgba(0, 255, 240, 0.1);
   animation: scaleIn 0.5s ease;
+  margin: auto;
 }
 
 @keyframes scaleIn {
@@ -1244,41 +1252,66 @@ body {
 
 .welcome-image {
   width: 100%;
-  height: auto;
-  object-fit: contain;
+  height: 140px;
+  object-fit: cover;
+  object-position: center 30%;
   border-bottom: 1px solid var(--border);
 }
 
 .welcome-content {
-  padding: var(--space-lg);
+  padding: var(--space-md);
   text-align: center;
 }
 
 .welcome-title {
-  font-size: 1.75rem;
+  font-size: 1.5rem;
   font-weight: 700;
   letter-spacing: -0.03em;
-  margin-bottom: var(--space-xs);
+  margin-bottom: 2px;
   background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
-.welcome-tagline {
-  font-size: 1rem;
+.welcome-subtitle {
+  font-size: 0.8125rem;
   color: var(--accent);
   font-weight: 500;
-  margin-bottom: var(--space-md);
+  margin-bottom: var(--space-sm);
+  letter-spacing: 0.05em;
 }
 
 .welcome-desc {
-  font-size: 0.9375rem;
+  font-size: 0.8125rem;
   color: var(--text-secondary);
-  line-height: 1.6;
-  margin-bottom: var(--space-lg);
+  line-height: 1.5;
+  margin-bottom: var(--space-md);
 }
 
+/* Inline feature chips */
+.welcome-features-inline {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+  flex-wrap: wrap;
+}
+
+.feature-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  font-size: 0.6875rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+/* Legacy features (vertical) - keep for reference */
 .welcome-features {
   display: flex;
   justify-content: center;
@@ -1308,17 +1341,17 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: var(--space-sm);
-  padding: var(--space-sm) var(--space-md);
-  background: var(--bg-surface);
+  gap: 6px;
+  padding: 6px 12px;
+  background: transparent;
   border: 1px solid var(--border);
   border-radius: var(--radius-full);
-  color: var(--text-secondary);
+  color: var(--text-muted);
   text-decoration: none;
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   font-weight: 500;
   transition: var(--transition-fast);
-  margin-bottom: var(--space-md);
+  margin-top: var(--space-sm);
 }
 
 .github-badge:hover {
@@ -1332,18 +1365,9 @@ body {
 }
 
 .welcome-trust {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  margin-bottom: var(--space-lg);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-xs);
-}
-
-.welcome-trust::before {
-  content: "🔒";
-  font-size: 0.875rem;
+  font-size: 0.6875rem;
+  color: var(--text-dim);
+  margin-top: var(--space-sm);
 }
 
 /* ===== UTILITIES ===== */
@@ -1371,11 +1395,53 @@ body {
 }
 
 /* ===== RESPONSIVE ===== */
-@media (max-width: 360px) {
+
+/* Small phones */
+@media (max-width: 390px) {
   :root {
     font-size: 14px;
   }
 
+  .welcome-overlay {
+    padding: var(--space-xs);
+  }
+
+  .welcome-card {
+    border-radius: var(--radius-md);
+  }
+
+  .welcome-image {
+    height: 120px;
+  }
+
+  .welcome-content {
+    padding: var(--space-sm);
+  }
+
+  .welcome-title {
+    font-size: 1.375rem;
+  }
+
+  .welcome-subtitle {
+    font-size: 0.75rem;
+  }
+
+  .welcome-desc {
+    font-size: 0.75rem;
+  }
+
+  .feature-chip {
+    font-size: 0.625rem;
+    padding: 3px 8px;
+  }
+
+  .btn-primary {
+    padding: var(--space-sm) var(--space-md);
+    font-size: 0.875rem;
+  }
+}
+
+@media (max-width: 360px) {
   .wizard-progress {
     gap: var(--space-xs);
   }
@@ -1386,6 +1452,18 @@ body {
 
   .step-label {
     display: none;
+  }
+
+  .welcome-image {
+    height: 100px;
+  }
+
+  .welcome-title {
+    font-size: 1.25rem;
+  }
+
+  .welcome-desc {
+    font-size: 0.6875rem;
   }
 }
 
