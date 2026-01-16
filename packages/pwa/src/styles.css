@@ -1252,9 +1252,7 @@ body {
 
 .welcome-image {
   width: 100%;
-  height: 140px;
-  object-fit: cover;
-  object-position: center 30%;
+  height: auto;
   border-bottom: 1px solid var(--border);
 }
 
@@ -1410,9 +1408,6 @@ body {
     border-radius: var(--radius-md);
   }
 
-  .welcome-image {
-    height: 120px;
-  }
 
   .welcome-content {
     padding: var(--space-sm);
@@ -1452,10 +1447,6 @@ body {
 
   .step-label {
     display: none;
-  }
-
-  .welcome-image {
-    height: 100px;
   }
 
   .welcome-title {
