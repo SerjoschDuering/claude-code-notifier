@@ -26,14 +26,12 @@ export function buildSetupPrompt(p: StoredPairingData): string {
   return `You are helping install Claude Code Approver - sends approval requests to iPhone via push notifications.
 
 **IMPORTANT - iOS Clipboard Bug Fix:**
-iOS clipboard sometimes corrupts text when copying. Before executing STEP 2, check line ~111 in the script for:
-\`\`\`
-local API_PA2"
-\`\`\`
-If you see this corruption, FIX IT to:
-\`\`\`
-local API_PATH="$2"
-\`\`\`
+iOS clipboard corrupts text. Before executing STEP 2, verify and fix these lines:
+
+1. Line ~15 MUST be exactly: \`REMOTE_FOCUS="claude remote approve"\`
+2. Line ~111 MUST be exactly: \`local API_PATH="$2"\`
+
+If either line looks corrupted or truncated, fix it to match exactly as shown above.
 
 **Credentials embedded - execute these steps:**
 
