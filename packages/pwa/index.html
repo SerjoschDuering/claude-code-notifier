@@ -48,14 +48,14 @@
           <img src="/assets/cc-approval-s.jpg" alt="Claude Code approval flow" class="welcome-image">
           <div class="welcome-content">
             <h1 class="welcome-title">Claude Approve</h1>
-            <p class="welcome-subtitle">Secure • Fast • Free</p>
+            <p class="welcome-subtitle">Free • Fast • Open Source</p>
             <p class="welcome-desc">
               Push notifications when Claude Code needs approval. Approve or deny from anywhere.
             </p>
             <div class="welcome-features-inline">
-              <span class="feature-chip">🔐 Secure</span>
-              <span class="feature-chip">⚡ Instant</span>
               <span class="feature-chip">🆓 Free</span>
+              <span class="feature-chip">⚡ Instant</span>
+              <span class="feature-chip">📖 Open Source</span>
             </div>
             <button id="welcome-start" class="btn-primary btn-glow">
               <span class="btn-text">Get Started</span>
@@ -72,28 +72,160 @@
         </div>
       </div>
 
-      <!-- ========== ONBOARDING WIZARD ========== -->
-      <section id="onboarding" class="screen onboarding">
-        <!-- Progress indicator -->
-        <div class="wizard-progress">
-          <div class="progress-step active" data-step="1">
-            <span class="step-num">1</span>
-            <span class="step-label">Copy</span>
+      <!-- ========== ADD TO HOME SCREEN (First-time browser users) ========== -->
+      <section id="add-to-homescreen" class="screen aths-screen hidden">
+        <div class="aths-hero">
+          <div class="hero-badge">
+            <span class="badge-icon">📱</span>
           </div>
-          <div class="progress-line"></div>
-          <div class="progress-step" data-step="2">
-            <span class="step-num">2</span>
-            <span class="step-label">Install</span>
-          </div>
-          <div class="progress-line"></div>
-          <div class="progress-step" data-step="3">
-            <span class="step-num">3</span>
-            <span class="step-label">Notify</span>
+          <h1 class="hero-title">Add to Home Screen</h1>
+          <p class="hero-desc">Install this app first to enable push notifications and secure credential storage.</p>
+        </div>
+
+        <div class="aths-card">
+          <div id="aths-instructions" class="aths-instructions">
+            <!-- Populated by JS based on platform -->
           </div>
         </div>
 
-        <!-- Step 1: Copy Setup Prompt -->
-        <div id="step-1" class="wizard-step active">
+        <div class="aths-why">
+          <p class="why-title">Why install first?</p>
+          <ul class="why-list">
+            <li>🔐 Credentials stored securely in app</li>
+            <li>🔔 Push notifications require installed app</li>
+            <li>⚡ Faster access from home screen</li>
+          </ul>
+        </div>
+
+        <div class="aths-footer">
+          <p class="aths-note">After installing, open the app from your home screen to continue setup.</p>
+          <button id="aths-skip-btn" class="btn-ghost aths-skip">
+            Skip for now (notifications may not work)
+          </button>
+        </div>
+      </section>
+
+      <!-- ========== ONBOARDING WIZARD ========== -->
+      <section id="onboarding" class="screen onboarding hidden">
+        <!-- Progress indicator (4 steps now) -->
+        <div class="wizard-progress">
+          <div class="progress-step active" data-step="0">
+            <span class="step-num">1</span>
+            <span class="step-label">Pair</span>
+          </div>
+          <div class="progress-line"></div>
+          <div class="progress-step" data-step="1">
+            <span class="step-num">2</span>
+            <span class="step-label">Notify</span>
+          </div>
+          <div class="progress-line"></div>
+          <div class="progress-step" data-step="2">
+            <span class="step-num">3</span>
+            <span class="step-label">Test</span>
+          </div>
+          <div class="progress-line"></div>
+          <div class="progress-step" data-step="3">
+            <span class="step-num">4</span>
+            <span class="step-label">Copy</span>
+          </div>
+        </div>
+
+        <!-- Step 0: Pair Device (NEW - Explicit pairing with visible ID) -->
+        <div id="step-0" class="wizard-step active">
+          <div class="step-hero">
+            <div class="hero-badge">
+              <span class="badge-icon">🔗</span>
+            </div>
+            <h1 class="hero-title">Pair Device</h1>
+            <p class="hero-desc">Create a unique pairing ID to connect this device with Claude Code.</p>
+          </div>
+
+          <div class="action-card">
+            <button id="pair-device-btn" class="btn-primary btn-glow">
+              <span class="btn-icon">🔗</span>
+              <span class="btn-text">Pair This Device</span>
+            </button>
+          </div>
+
+          <div class="pairing-status" id="pairing-status">
+            <span class="status-icon">⏳</span>
+            <span class="status-text">Not paired yet</span>
+          </div>
+
+          <!-- Pairing ID display (hidden until paired) -->
+          <div id="pairing-id-display" class="pairing-id-display hidden">
+            <div class="pairing-id-label">Your Pairing ID</div>
+            <div class="pairing-id-value">
+              <code id="pairing-id-code">—</code>
+              <button id="copy-pairing-id" class="copy-id-btn" title="Copy full ID">📋</button>
+            </div>
+            <div class="pairing-id-hint">Save this ID to verify your connection</div>
+          </div>
+
+          <button id="next-step-0" class="btn-secondary" disabled>
+            Continue →
+          </button>
+        </div>
+
+        <!-- Step 1: Enable Notifications -->
+        <div id="step-1" class="wizard-step">
+          <div class="step-hero">
+            <div class="hero-badge">
+              <span class="badge-icon">🔔</span>
+            </div>
+            <h1 class="hero-title">Enable Notifications</h1>
+            <p class="hero-desc">Get instant alerts when Claude Code needs approval.</p>
+          </div>
+
+          <div class="action-card">
+            <button id="enable-notifications-btn" class="btn-primary btn-glow">
+              <span class="btn-icon">🔔</span>
+              <span class="btn-text">Enable Push Notifications</span>
+            </button>
+          </div>
+
+          <div class="notification-status" id="notification-status">
+            <span class="status-icon">⏳</span>
+            <span class="status-text">Not enabled yet</span>
+          </div>
+
+          <div class="step-actions">
+            <button id="prev-step-1" class="btn-ghost">← Back</button>
+            <button id="next-step-1" class="btn-secondary" disabled>Continue →</button>
+          </div>
+        </div>
+
+        <!-- Step 2: Test Notification -->
+        <div id="step-2" class="wizard-step">
+          <div class="step-hero">
+            <div class="hero-badge">
+              <span class="badge-icon">✅</span>
+            </div>
+            <h1 class="hero-title">Test Connection</h1>
+            <p class="hero-desc">Send a test notification to verify everything works.</p>
+          </div>
+
+          <div class="action-card">
+            <button id="send-test-btn" class="btn-primary btn-glow">
+              <span class="btn-icon">📤</span>
+              <span class="btn-text">Send Test Notification</span>
+            </button>
+            <p class="action-hint">You should receive it within seconds</p>
+          </div>
+
+          <div class="test-status" id="test-status">
+            <span class="status-icon">⏳</span>
+            <span class="status-text">Not tested yet</span>
+          </div>
+
+          <div class="step-actions">
+            <button id="prev-step-2" class="btn-ghost">← Back</button>
+            <button id="next-step-2" class="btn-secondary" disabled>Continue →</button>
+          </div>
+        </div>
+
+        <!-- Step 3: Copy Setup Prompt -->
+        <div id="step-3" class="wizard-step">
           <div class="step-hero">
             <div class="hero-badge">
               <span class="badge-pulse"></span>
@@ -121,77 +253,9 @@
             <pre class="preview-code"><code id="prompt-code"></code></pre>
           </details>
 
-          <button id="next-step-1" class="btn-secondary">
-            I've pasted into Claude Code →
-          </button>
-        </div>
-
-        <!-- Step 2: Add to Home Screen -->
-        <div id="step-2" class="wizard-step">
-          <div class="step-hero">
-            <div class="hero-badge">
-              <span class="badge-icon">📱</span>
-            </div>
-            <h1 class="hero-title">Add to Home Screen</h1>
-            <p class="hero-desc">One quick step so you can receive push notifications.</p>
-          </div>
-
-          <div class="why-pwa">
-            <p class="why-title">Why this step?</p>
-            <p class="why-text">Safari can't send push notifications — but Home Screen apps can. Adding this takes 5 seconds and uses no storage.</p>
-          </div>
-
-          <div class="install-guide">
-            <div class="guide-step">
-              <span class="guide-num">1</span>
-              <p>Tap the <strong>Share</strong> button <span class="share-icon">⎋</span> in Safari</p>
-            </div>
-            <div class="guide-step">
-              <span class="guide-num">2</span>
-              <p>Scroll and tap <strong>"Add to Home Screen"</strong></p>
-            </div>
-            <div class="guide-step">
-              <span class="guide-num">3</span>
-              <p>Then <strong>open from Home Screen</strong> (not Safari)</p>
-            </div>
-          </div>
-
-          <div class="pwa-check" id="pwa-check">
-            <span class="check-icon" id="pwa-icon">⚠️</span>
-            <span class="check-text" id="pwa-text">Still in Safari — add to Home Screen first</span>
-          </div>
-
-          <div class="step-actions">
-            <button id="prev-step-2" class="btn-ghost">← Back</button>
-            <button id="next-step-2" class="btn-secondary">Continue →</button>
-          </div>
-        </div>
-
-        <!-- Step 3: Enable Notifications -->
-        <div id="step-3" class="wizard-step">
-          <div class="step-hero">
-            <div class="hero-badge">
-              <span class="badge-icon">🔔</span>
-            </div>
-            <h1 class="hero-title">Enable Notifications</h1>
-            <p class="hero-desc">Get instant alerts when Claude Code needs approval.</p>
-          </div>
-
-          <div class="action-card">
-            <button id="enable-notifications-btn" class="btn-primary btn-glow">
-              <span class="btn-icon">🔔</span>
-              <span class="btn-text">Enable Push Notifications</span>
-            </button>
-          </div>
-
-          <div class="notification-status" id="notification-status">
-            <span class="status-icon">⏳</span>
-            <span class="status-text">Notifications not enabled</span>
-          </div>
-
           <div class="step-actions">
             <button id="prev-step-3" class="btn-ghost">← Back</button>
-            <button id="finish-setup" class="btn-secondary">Finish Setup →</button>
+            <button id="finish-setup" class="btn-secondary">I've pasted into Claude Code →</button>
           </div>
         </div>
       </section>
@@ -273,6 +337,9 @@
             </button>
             <button id="copy-prompt-settings" class="settings-btn">
               <span>📋</span> Copy Setup Prompt
+            </button>
+            <button id="regenerate-btn" class="settings-btn warning">
+              <span>🔄</span> Regenerate Credentials
             </button>
             <button id="unpair-btn" class="settings-btn danger">
               <span>🗑️</span> Unpair Device

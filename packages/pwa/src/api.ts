@@ -78,6 +78,24 @@ export async function getVapidPublicKey(): Promise<string> {
   return data.publicKey;
 }
 
+/**
+ * Initialize pairing with the server.
+ * This registers the device AND returns credentials.
+ * MUST be called before any other API calls.
+ */
+export async function initPairing(): Promise<{
+  success: boolean;
+  data?: { pairingId: string; pairingSecret: string };
+  error?: string;
+}> {
+  const response = await fetch(`${API_BASE}/pair/init`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+  });
+  return response.json();
+}
+
 export async function registerPushSubscription(
   params: SignedRequestParams,
   pushSubscription: PushSubscription
@@ -119,6 +137,45 @@ export async function registerPushSubscription(
   });
 
   const response = await fetch(`${API_BASE}/pair/register-push`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: signedBody,
+  });
+
+  return response.json();
+}
+
+export async function sendTestNotification(
+  params: SignedRequestParams
+): Promise<{ success: boolean; error?: string }> {
+  const path = '/api/pair/test-notification';
+  const ts = Math.floor(Date.now() / 1000);
+  const nonce = generateNonce();
+
+  const body = JSON.stringify({
+    pairingId: params.pairingId,
+    ts,
+    nonce,
+    signature: '',
+  });
+
+  const signature = await createSignature(
+    params.pairingSecret,
+    'POST',
+    path,
+    body,
+    ts,
+    nonce
+  );
+
+  const signedBody = JSON.stringify({
+    pairingId: params.pairingId,
+    ts,
+    nonce,
+    signature,
+  });
+
+  const response = await fetch(`${API_BASE}/pair/test-notification`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: signedBody,

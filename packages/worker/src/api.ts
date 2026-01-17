@@ -46,6 +46,11 @@ export async function handleApiRequest(
     return handleRegisterPush(request, env);
   }
 
+  // POST /api/pair/test-notification - send a test push notification
+  if (path === '/pair/test-notification' && request.method === 'POST') {
+    return handleTestNotification(request, env);
+  }
+
   // ========== V2 ENDPOINTS (Header-based auth) ==========
 
   // POST /api/v2/request - create approval request with header auth
@@ -100,10 +105,16 @@ async function handlePairInit(request: Request, env: Env): Promise<Response> {
   const deviceId = env.DEVICE_REGISTRY.idFromName(pairingId);
   const deviceDO = env.DEVICE_REGISTRY.get(deviceId);
 
-  await deviceDO.fetch(new Request('http://internal/register', {
+  const registerResp = await deviceDO.fetch(new Request('http://internal/register', {
     method: 'POST',
     body: JSON.stringify({ pairingId, pairingSecret }),
   }));
+
+  // Validate registration succeeded
+  if (!registerResp.ok) {
+    console.error('[handlePairInit] Device registration failed:', await registerResp.text());
+    return jsonResponse({ success: false, error: 'Device registration failed' }, 500);
+  }
 
   return jsonResponse({
     success: true,
@@ -141,6 +152,58 @@ async function handleRegisterPush(request: Request, env: Env): Promise<Response>
   }
 
   return jsonResponse({ success: true });
+}
+
+async function handleTestNotification(request: Request, env: Env): Promise<Response> {
+  const body = await request.text();
+
+  if (body.length > MAX_PAYLOAD_SIZE_BYTES) {
+    return jsonResponse({ success: false, error: 'Payload too large' }, 413);
+  }
+
+  const data = JSON.parse(body) as { pairingId: string; ts: number; nonce: string; signature: string };
+
+  // Validate request
+  const validation = await validateSignedRequest(data, body, '/api/pair/test-notification', 'POST', env);
+  if (!validation.valid) {
+    return jsonResponse({ success: false, error: validation.error }, 401);
+  }
+
+  // Get device and push subscription
+  const deviceId = env.DEVICE_REGISTRY.idFromName(data.pairingId);
+  const deviceDO = env.DEVICE_REGISTRY.get(deviceId);
+
+  const deviceResp = await deviceDO.fetch(new Request('http://internal/get'));
+  if (!deviceResp.ok) {
+    return jsonResponse({ success: false, error: 'Device not found' }, 404);
+  }
+
+  const deviceData = await deviceResp.json() as { pushSubscription?: PushSubscriptionData };
+  if (!deviceData.pushSubscription) {
+    return jsonResponse({ success: false, error: 'Push subscription not registered' }, 400);
+  }
+
+  // Send test notification
+  try {
+    await sendPushNotification(
+      deviceData.pushSubscription,
+      {
+        title: '✅ Test Successful!',
+        body: 'Push notifications are working. You\'re ready to go!',
+        data: { type: 'test' },
+        tag: 'test-notification',
+      },
+      {
+        publicKey: env.VAPID_PUBLIC_KEY,
+        privateKey: env.VAPID_PRIVATE_KEY,
+        subject: env.VAPID_SUBJECT,
+      }
+    );
+    return jsonResponse({ success: true });
+  } catch (error) {
+    console.error('Test notification failed:', error);
+    return jsonResponse({ success: false, error: 'Failed to send notification' }, 500);
+  }
 }
 
 async function handleCreateRequest(

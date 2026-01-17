@@ -248,6 +248,7 @@ cd packages/pwa && pnpm dev
 - Check `~/.claude/settings.json` syntax
 - Ensure hook script is executable: `chmod +x ~/.claude-approve-hook.sh`
 - Check dependencies: `which jq curl openssl xxd`
+- **Note:** Claude Code's PreToolUse hooks are intermittently unreliable ([GitHub #6305](https://github.com/anthropics/claude-code/issues/6305)). Try restarting Claude Code or using absolute path instead of `$HOME` in settings.
 
 ### "Device not paired" error
 

@@ -5,7 +5,7 @@ import { getPairingData, savePairingData, clearPairingData, StoredPairingData } 
 interface NavigatorStandalone extends Navigator {
   standalone?: boolean;
 }
-import { API_BASE, getVapidPublicKey, registerPushSubscription, getPendingRequests, submitDecision } from './api';
+import { API_BASE, getVapidPublicKey, registerPushSubscription, getPendingRequests, submitDecision, initPairing, sendTestNotification } from './api';
 
 // ============================================
 // INITIALIZATION
@@ -21,33 +21,98 @@ async function init() {
     }
   }
 
-  // Get or generate credentials
-  let pairingData = await getPairingData();
+  // Check if running as installed PWA (homescreen)
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches ||
+                       (window.navigator as NavigatorStandalone).standalone === true;
 
-  if (!pairingData) {
-    // Generate credentials immediately on first load
-    pairingData = await generateCredentials();
-    await savePairingData(pairingData);
-  }
-
-  // Check state - welcome modal starts hidden, only show if needed
-  const welcomeSeen = localStorage.getItem('welcome-seen') === 'true';
+  // Check if we have credentials (paired)
+  const pairingData = await getPairingData();
+  const isPaired = !!pairingData;
   const onboardingComplete = localStorage.getItem('onboarding-complete') === 'true';
 
-  if (onboardingComplete) {
-    // Go straight to dashboard, keep welcome hidden
+  console.log('[init] isStandalone:', isStandalone, 'isPaired:', isPaired, 'onboardingComplete:', onboardingComplete);
+
+  // SIMPLE LOGIC:
+  // - If paired AND onboarding complete → Dashboard
+  // - If standalone AND paired → Onboarding (to finish setup)
+  // - If standalone AND not paired → Welcome → generate creds → Onboarding
+  // - If NOT standalone (browser) → ALWAYS show welcome/add-to-home
+
+  if (isPaired && onboardingComplete && isStandalone) {
+    // Fully set up and running from homescreen → Dashboard
     showDashboard(pairingData);
-  } else if (welcomeSeen) {
-    // Continue onboarding, keep welcome hidden
-    showOnboarding(pairingData);
-  } else {
-    // First visit - show welcome modal
-    showWelcome();
-    setupWelcome(pairingData);
+    setupSettingsDrawer(pairingData);
+    return;
   }
 
-  // Setup settings drawer
+  if (!isStandalone) {
+    // In browser - ALWAYS show welcome with add-to-home instructions
+    showWelcome();
+    setupWelcomeFlow(false);
+    return;
+  }
+
+  // Running from homescreen (standalone)
+  if (!isPaired) {
+    // First time in PWA - show welcome, then generate creds
+    showWelcome();
+    setupWelcomeFlow(true);
+    return;
+  }
+
+  // Paired but onboarding not complete - continue onboarding
+  showOnboarding(pairingData);
   setupSettingsDrawer(pairingData);
+}
+
+function showAddToHomeScreen() {
+  // Hide other screens
+  document.getElementById('onboarding')?.classList.add('hidden');
+  document.getElementById('dashboard')?.classList.add('hidden');
+  document.getElementById('welcome-modal')?.classList.add('hidden');
+
+  // Show add-to-home-screen instructions
+  const addToHomeEl = document.getElementById('add-to-homescreen');
+  if (addToHomeEl) {
+    addToHomeEl.classList.remove('hidden');
+  }
+
+  // Detect platform for specific instructions
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const instructionsEl = document.getElementById('aths-instructions');
+  if (instructionsEl) {
+    if (isIOS) {
+      instructionsEl.innerHTML = `
+        <div class="aths-step"><span class="step-num">1</span><span class="step-text">Tap <strong>Share</strong> ⬆️ at bottom</span></div>
+        <div class="aths-step"><span class="step-num">2</span><span class="step-text">Scroll right → tap <strong>More</strong></span></div>
+        <div class="aths-step"><span class="step-num">3</span><span class="step-text">Tap <strong>Add to Home Screen</strong></span></div>
+        <div class="aths-step"><span class="step-num">4</span><span class="step-text">Tap <strong>Add</strong> → Open from home</span></div>
+      `;
+    } else {
+      instructionsEl.innerHTML = `
+        <div class="aths-step"><span class="step-num">1</span><span class="step-text">Tap menu <strong>⋮</strong> (3 dots)</span></div>
+        <div class="aths-step"><span class="step-num">2</span><span class="step-text">Tap <strong>Add to Home Screen</strong></span></div>
+        <div class="aths-step"><span class="step-num">3</span><span class="step-text">Open from home screen</span></div>
+      `;
+    }
+  }
+
+  // Setup skip button
+  document.getElementById('aths-skip-btn')?.addEventListener('click', async () => {
+    // User wants to skip - proceed without PWA install
+    let pairingData = await getPairingData();
+    if (!pairingData) {
+      pairingData = await generateCredentials();
+      if (!pairingData) {
+        // Server registration failed - don't proceed
+        return;
+      }
+      await savePairingData(pairingData);
+    }
+    addToHomeEl?.classList.add('hidden');
+    showOnboarding(pairingData);
+    setupSettingsDrawer(pairingData);
+  });
 }
 
 function showWelcome() {
@@ -57,20 +122,31 @@ function showWelcome() {
   }
 }
 
-function setupWelcome(pairingData: StoredPairingData) {
-  document.getElementById('welcome-start')?.addEventListener('click', () => {
-    localStorage.setItem('welcome-seen', 'true');
-    hideWelcome();
-    showOnboarding(pairingData);
+function setupWelcomeFlow(isStandalone: boolean) {
+  document.getElementById('welcome-start')?.addEventListener('click', async () => {
+    await hideWelcome();
+
+    if (isStandalone) {
+      // Running from homescreen - go to onboarding (pairing happens in Step 0)
+      const existingData = await getPairingData();
+      showOnboarding(existingData); // Pass null if not paired yet
+      if (existingData) {
+        setupSettingsDrawer(existingData);
+      }
+    } else {
+      // In browser - show Add to Home Screen instructions
+      showAddToHomeScreen();
+    }
   });
 }
 
-function hideWelcome() {
+async function hideWelcome(): Promise<void> {
   const modal = document.getElementById('welcome-modal');
   if (modal) {
-    // Use smooth fade transition
+    // Use smooth fade transition and wait for it to complete
     modal.classList.add('hiding');
-    setTimeout(() => modal.classList.add('hidden'), 300);
+    await new Promise(resolve => setTimeout(resolve, 300));
+    modal.classList.add('hidden');
   }
 }
 
@@ -78,60 +154,105 @@ function hideWelcome() {
 // CREDENTIAL GENERATION
 // ============================================
 
-async function generateCredentials(): Promise<StoredPairingData> {
-  const idBytes = new Uint8Array(16);
-  crypto.getRandomValues(idBytes);
-  const pairingId = Array.from(idBytes).map(b => b.toString(16).padStart(2, '0')).join('');
+async function generateCredentials(): Promise<StoredPairingData | null> {
+  // Call server to generate AND register credentials in one step
+  // This ensures the device is registered before the hook tries to use it
+  try {
+    const result = await initPairing();
 
-  const secretBytes = new Uint8Array(32);
-  crypto.getRandomValues(secretBytes);
-  const pairingSecret = btoa(String.fromCharCode(...secretBytes));
+    if (!result.success || !result.data) {
+      console.error('[generateCredentials] Server registration failed:', result.error);
+      showToast('Failed to connect to server. Check your internet connection.', 'error');
+      return null; // Don't fallback to local - that would silently break everything
+    }
 
-  return { pairingId, pairingSecret, createdAt: Date.now() };
+    console.log('[generateCredentials] Device registered with server, pairingId:', result.data.pairingId.slice(0, 8) + '...');
+    return {
+      pairingId: result.data.pairingId,
+      pairingSecret: result.data.pairingSecret,
+      createdAt: Date.now()
+    };
+  } catch (error) {
+    console.error('[generateCredentials] Network error:', error);
+    showToast('Network error. Please check your connection and try again.', 'error');
+    return null;
+  }
 }
 
 // ============================================
 // ONBOARDING WIZARD
 // ============================================
 
-function showOnboarding(pairingData: StoredPairingData) {
+function showOnboarding(pairingData: StoredPairingData | null) {
   const onboarding = document.getElementById('onboarding')!;
   const dashboard = document.getElementById('dashboard')!;
   onboarding.classList.remove('hidden');
   dashboard.classList.add('hidden');
 
-  const setupPrompt = buildSetupPrompt(pairingData);
-  const promptCode = document.getElementById('prompt-code');
-  if (promptCode) promptCode.textContent = setupPrompt;
-
-  const copyBtn = document.getElementById('copy-prompt-btn');
-  copyBtn?.addEventListener('click', async () => {
-    await copyToClipboard(setupPrompt);
-    showToast('✓ Copied to clipboard', 'success');
-    const btnText = copyBtn.querySelector('.btn-text');
-    if (btnText) {
-      btnText.textContent = 'Copied!';
-      setTimeout(() => { btnText.textContent = 'Copy to Clipboard'; }, 2000);
-    }
-  });
+  // If already paired, update UI to reflect that
+  if (pairingData) {
+    updatePairingUI(pairingData);
+    // Pre-populate setup prompt
+    const setupPrompt = buildSetupPrompt(pairingData);
+    const promptCode = document.getElementById('prompt-code');
+    if (promptCode) promptCode.textContent = setupPrompt;
+  }
 
   setupWizardNavigation(pairingData);
   updatePWAStatus();
 }
 
-function setupWizardNavigation(pairingData: StoredPairingData) {
-  const steps = ['step-1', 'step-2', 'step-3'];
+// Update pairing UI to show success state with ID
+function updatePairingUI(pairingData: StoredPairingData) {
+  const statusEl = document.getElementById('pairing-status');
+  const icon = statusEl?.querySelector('.status-icon');
+  const text = statusEl?.querySelector('.status-text');
+  if (icon) icon.textContent = '✅';
+  if (text) text.textContent = 'Paired successfully!';
+  statusEl?.classList.add('success');
+
+  // Show pairing ID
+  const idDisplay = document.getElementById('pairing-id-display');
+  const idCode = document.getElementById('pairing-id-code');
+  if (idDisplay && idCode) {
+    // Show first 8 and last 4 chars: ab3f1234...x2c9
+    const id = pairingData.pairingId;
+    const displayId = id.length > 12
+      ? `${id.slice(0, 8)}...${id.slice(-4)}`
+      : id;
+    idCode.textContent = displayId;
+    idDisplay.classList.remove('hidden');
+  }
+
+  // Enable continue button
+  const nextBtn = document.getElementById('next-step-0') as HTMLButtonElement;
+  if (nextBtn) nextBtn.disabled = false;
+
+  // Update pair button to show success
+  const pairBtn = document.getElementById('pair-device-btn');
+  const btnText = pairBtn?.querySelector('.btn-text');
+  const btnIcon = pairBtn?.querySelector('.btn-icon');
+  if (btnText) btnText.textContent = 'Paired!';
+  if (btnIcon) btnIcon.textContent = '✅';
+  if (pairBtn) (pairBtn as HTMLButtonElement).disabled = true;
+}
+
+function setupWizardNavigation(initialPairingData: StoredPairingData | null) {
+  const steps = ['step-0', 'step-1', 'step-2', 'step-3'];
   const progressSteps = document.querySelectorAll('.progress-step');
+
+  // Track current pairing data (may be set during Step 0)
+  let pairingData: StoredPairingData | null = initialPairingData;
 
   function goToStep(stepNum: number) {
     steps.forEach((stepId, index) => {
       const stepEl = document.getElementById(stepId);
       const progressEl = progressSteps[index];
-      if (index + 1 === stepNum) {
+      if (index === stepNum) {
         stepEl?.classList.add('active');
         progressEl?.classList.add('active');
         progressEl?.classList.remove('completed');
-      } else if (index + 1 < stepNum) {
+      } else if (index < stepNum) {
         stepEl?.classList.remove('active');
         progressEl?.classList.remove('active');
         progressEl?.classList.add('completed');
@@ -142,15 +263,175 @@ function setupWizardNavigation(pairingData: StoredPairingData) {
     });
   }
 
-  document.getElementById('next-step-1')?.addEventListener('click', () => goToStep(2));
+  // Step 0: Pair Device (EXPLICIT pairing with visible ID)
+  const nextStep0Btn = document.getElementById('next-step-0') as HTMLButtonElement;
+  const pairBtn = document.getElementById('pair-device-btn');
+
+  // If already paired, update UI
+  if (pairingData) {
+    updatePairingUI(pairingData);
+  }
+
+  pairBtn?.addEventListener('click', async () => {
+    const statusEl = document.getElementById('pairing-status');
+    const icon = statusEl?.querySelector('.status-icon');
+    const text = statusEl?.querySelector('.status-text');
+    const btnText = pairBtn.querySelector('.btn-text');
+
+    // Show loading state
+    if (icon) icon.textContent = '⏳';
+    if (text) text.textContent = 'Connecting to server...';
+    if (btnText) btnText.textContent = 'Pairing...';
+    (pairBtn as HTMLButtonElement).disabled = true;
+
+    try {
+      const newPairingData = await generateCredentials();
+      if (newPairingData) {
+        await savePairingData(newPairingData);
+        pairingData = newPairingData;
+        updatePairingUI(newPairingData);
+        setupSettingsDrawer(newPairingData);
+
+        // Pre-populate setup prompt for Step 3
+        const setupPrompt = buildSetupPrompt(newPairingData);
+        const promptCode = document.getElementById('prompt-code');
+        if (promptCode) promptCode.textContent = setupPrompt;
+
+        // Setup copy button for Step 3
+        const copyBtn = document.getElementById('copy-prompt-btn');
+        copyBtn?.addEventListener('click', async () => {
+          await copyToClipboard(setupPrompt);
+          showToast('✓ Copied to clipboard', 'success');
+          const copyBtnText = copyBtn.querySelector('.btn-text');
+          if (copyBtnText) {
+            copyBtnText.textContent = 'Copied!';
+            setTimeout(() => { copyBtnText.textContent = 'Copy to Clipboard'; }, 2000);
+          }
+        });
+
+        showToast('✓ Device paired successfully!', 'success');
+      } else {
+        // Failed - reset button
+        if (icon) icon.textContent = '❌';
+        if (text) text.textContent = 'Pairing failed - tap to retry';
+        if (btnText) btnText.textContent = 'Retry Pairing';
+        (pairBtn as HTMLButtonElement).disabled = false;
+      }
+    } catch (error) {
+      if (icon) icon.textContent = '❌';
+      if (text) text.textContent = 'Network error - tap to retry';
+      if (btnText) btnText.textContent = 'Retry Pairing';
+      (pairBtn as HTMLButtonElement).disabled = false;
+      showToast('Pairing failed: network error', 'error');
+    }
+  });
+
+  // Copy pairing ID button
+  document.getElementById('copy-pairing-id')?.addEventListener('click', async () => {
+    if (pairingData) {
+      await copyToClipboard(pairingData.pairingId);
+      showToast('✓ Pairing ID copied', 'success');
+    }
+  });
+
+  nextStep0Btn?.addEventListener('click', () => goToStep(1));
+
+  // Step 1: Enable Notifications
+  const nextStep1Btn = document.getElementById('next-step-1') as HTMLButtonElement;
+  document.getElementById('enable-notifications-btn')?.addEventListener('click', async () => {
+    if (!pairingData) {
+      showToast('Please pair device first', 'error');
+      goToStep(0);
+      return;
+    }
+    const success = await enablePushNotifications(pairingData);
+    if (success) {
+      const statusEl = document.getElementById('notification-status');
+      const icon = statusEl?.querySelector('.status-icon');
+      const text = statusEl?.querySelector('.status-text');
+      if (icon) icon.textContent = '✅';
+      if (text) text.textContent = 'Notifications enabled!';
+      statusEl?.classList.add('success');
+      nextStep1Btn.disabled = false;
+    }
+  });
+  document.getElementById('prev-step-1')?.addEventListener('click', () => goToStep(0));
+  nextStep1Btn?.addEventListener('click', () => goToStep(2));
+
+  // Step 2: Test Notification
+  const nextStep2Btn = document.getElementById('next-step-2') as HTMLButtonElement;
+  document.getElementById('send-test-btn')?.addEventListener('click', async () => {
+    if (!pairingData) {
+      showToast('Please pair device first', 'error');
+      goToStep(0);
+      return;
+    }
+    const testStatus = document.getElementById('test-status');
+    const icon = testStatus?.querySelector('.status-icon');
+    const text = testStatus?.querySelector('.status-text');
+
+    if (icon) icon.textContent = '⏳';
+    if (text) text.textContent = 'Sending...';
+
+    try {
+      const result = await sendTestNotification(pairingData);
+      if (result.success) {
+        if (icon) icon.textContent = '✅';
+        if (text) text.textContent = 'Test sent! Check your notification.';
+        testStatus?.classList.add('success');
+        nextStep2Btn.disabled = false;
+        showToast('✓ Test notification sent!', 'success');
+      } else {
+        if (icon) icon.textContent = '❌';
+        if (text) text.textContent = 'Failed: ' + (result.error || 'Unknown error');
+        showToast('Test failed: ' + result.error, 'error');
+      }
+    } catch (error) {
+      if (icon) icon.textContent = '❌';
+      if (text) text.textContent = 'Network error';
+      showToast('Network error', 'error');
+    }
+  });
   document.getElementById('prev-step-2')?.addEventListener('click', () => goToStep(1));
-  document.getElementById('next-step-2')?.addEventListener('click', () => goToStep(3));
+  nextStep2Btn?.addEventListener('click', () => goToStep(3));
+
+  // Step 3: Copy Prompt
   document.getElementById('prev-step-3')?.addEventListener('click', () => goToStep(2));
-  document.getElementById('enable-notifications-btn')?.addEventListener('click', () => enablePushNotifications(pairingData));
   document.getElementById('finish-setup')?.addEventListener('click', () => {
+    if (!pairingData) {
+      showToast('Please pair device first', 'error');
+      goToStep(0);
+      return;
+    }
     localStorage.setItem('onboarding-complete', 'true');
     showDashboard(pairingData);
   });
+
+  // Check if notifications already enabled (e.g., returning user)
+  if ('Notification' in window && Notification.permission === 'granted') {
+    const statusEl = document.getElementById('notification-status');
+    const icon = statusEl?.querySelector('.status-icon');
+    const text = statusEl?.querySelector('.status-text');
+    if (icon) icon.textContent = '✅';
+    if (text) text.textContent = 'Notifications already enabled!';
+    statusEl?.classList.add('success');
+    nextStep1Btn.disabled = false;
+  }
+
+  // If already paired and came back, also setup copy button
+  if (pairingData) {
+    const setupPrompt = buildSetupPrompt(pairingData);
+    const copyBtn = document.getElementById('copy-prompt-btn');
+    copyBtn?.addEventListener('click', async () => {
+      await copyToClipboard(setupPrompt);
+      showToast('✓ Copied to clipboard', 'success');
+      const copyBtnText = copyBtn.querySelector('.btn-text');
+      if (copyBtnText) {
+        copyBtnText.textContent = 'Copied!';
+        setTimeout(() => { copyBtnText.textContent = 'Copy to Clipboard'; }, 2000);
+      }
+    });
+  }
 }
 
 function updatePWAStatus() {
@@ -296,8 +577,36 @@ function setupSettingsDrawer(pairingData: StoredPairingData) {
     showToast(success ? '✓ Copied' : '✗ Copy failed', success ? 'success' : 'error');
   });
 
+  document.getElementById('regenerate-btn')?.addEventListener('click', async () => {
+    if (confirm('Regenerate credentials?\n\nThis will create new pairing credentials. You will need to copy the new setup prompt to Claude Code to re-pair.')) {
+      // Generate new credentials
+      const newPairingData = await generateCredentials();
+      if (!newPairingData) {
+        // Server registration failed - toast already shown
+        return;
+      }
+      await savePairingData(newPairingData);
+
+      // Update UI
+      const idEl = document.getElementById('settings-pairing-id');
+      if (idEl) idEl.textContent = newPairingData.pairingId.slice(0, 12) + '...';
+
+      // Copy new prompt to clipboard
+      const prompt = buildSetupPrompt(newPairingData);
+      const success = await copyToClipboard(prompt);
+
+      if (success) {
+        showToast('✓ New credentials generated & copied!', 'success');
+        // Close drawer
+        document.getElementById('settings-drawer')?.classList.add('hidden');
+      } else {
+        showToast('Generated but copy failed - use Copy Setup Prompt', 'error');
+      }
+    }
+  });
+
   document.getElementById('unpair-btn')?.addEventListener('click', async () => {
-    if (confirm('Unpair device?')) {
+    if (confirm('Unpair device?\n\nThis will delete all credentials and reset the app. You will need to set up again from scratch.')) {
       await clearPairingData();
       localStorage.removeItem('onboarding-complete');
       localStorage.removeItem('welcome-seen');
@@ -310,22 +619,28 @@ function setupSettingsDrawer(pairingData: StoredPairingData) {
 // PUSH NOTIFICATIONS
 // ============================================
 
-async function enablePushNotifications(pairingData: StoredPairingData) {
-  const statusEl = document.getElementById('notification-status');
+async function enablePushNotifications(pairingData: StoredPairingData): Promise<boolean> {
   try {
     const permission = await Notification.requestPermission();
-    if (permission !== 'granted') { showToast('Permission denied', 'error'); return; }
+    if (permission !== 'granted') {
+      showToast('Permission denied', 'error');
+      return false;
+    }
     const reg = await navigator.serviceWorker.ready;
     const vapid = await getVapidPublicKey();
     const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(vapid) });
     const result = await registerPushSubscription(pairingData, sub);
     if (result.success) {
-      statusEl?.classList.add('success');
-      const icon = statusEl?.querySelector('.status-icon'); if (icon) icon.textContent = '✓';
-      const text = statusEl?.querySelector('.status-text'); if (text) text.textContent = 'Enabled';
       showToast('✓ Notifications enabled', 'success');
-    } else showToast('Failed: ' + result.error, 'error');
-  } catch (e) { showToast('Failed to enable', 'error'); }
+      return true;
+    } else {
+      showToast('Failed: ' + result.error, 'error');
+      return false;
+    }
+  } catch (e) {
+    showToast('Failed to enable', 'error');
+    return false;
+  }
 }
 
 function urlBase64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
@@ -356,89 +671,327 @@ function buildSetupPrompt(p: StoredPairingData): string {
   const url = deriveWorkerUrl();
   console.log('[buildSetupPrompt] Derived URL:', url);
 
+  // Full hook script with all features: macOS dialog, remote push, session caching, local whitelist
   return `You are helping install Claude Code Approver - sends approval requests to iPhone via push notifications.
 
 **Credentials embedded - execute these steps:**
 
 ## STEP 1: Check Dependencies
 \`\`\`bash
-for cmd in jq curl openssl xxd; do command -v $cmd &>/dev/null && echo "✓ $cmd" || echo "✗ $cmd MISSING"; done
+for cmd in jq curl openssl xxd osascript; do command -v $cmd &>/dev/null && echo "✓ $cmd" || echo "✗ $cmd MISSING"; done
 \`\`\`
 
 ## STEP 2: Create Hook
 \`\`\`bash
 cat > ~/.claude-approve-hook.sh << 'HOOKEOF'
 #!/bin/bash
+# Claude Code Approval Hook v2 - Pure Bash Implementation
+# Uses header-based authentication with curl + openssl (no npm/npx dependencies)
+#
+# Focus Mode Routing:
+# - "claude remote approve" → iPhone push notification (requires pairing)
+# - "claude notification approval" → macOS native dialog (local only)
+# - Any other Focus Mode → Falls back to CLI prompt
+
+# Embedded credentials (no config file needed)
 PAIRING_ID="${p.pairingId}"
 PAIRING_SECRET="${p.pairingSecret}"
 SERVER_URL="${url}"
-FOCUS_MODE_NAME="claude remote approve"
+REMOTE_FOCUS="claude remote approve"
+MACOS_FOCUS="claude notification approval"
+
 SESSION_CACHE="/tmp/claude-approve-cache-$PPID.json"
+
+# Response formats for Claude Code hooks
 ALLOW='{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow","permissionDecisionReason":"Approved via notification"}}'
 DENY='{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Denied via notification"}}'
 
-command -v jq &>/dev/null || { echo "$ALLOW"; exit 0; }
-command -v curl &>/dev/null || { echo "$ALLOW"; exit 0; }
+# Fail open if missing dependencies
+command -v jq &> /dev/null || { echo "$ALLOW"; exit 0; }
+command -v curl &> /dev/null || { echo "$ALLOW"; exit 0; }
+command -v openssl &> /dev/null || { echo "$ALLOW"; exit 0; }
+command -v xxd &> /dev/null || { echo "$ALLOW"; exit 0; }
 
+# Read input from Claude Code
 INPUT=$(cat)
 TOOL=$(echo "$INPUT" | jq -r '.tool_name // "unknown"')
 TOOL_INPUT=$(echo "$INPUT" | jq -c '.tool_input // {}')
 CWD=$(echo "$INPUT" | jq -r '.cwd // ""')
 
+# Focus Mode Check - use shortcuts CLI to get current Focus Mode
 FOCUS_MODE=$(shortcuts run "Get Current Focus" 2>/dev/null | tr -d '\\n')
-if [[ "$FOCUS_MODE" != "$FOCUS_MODE_NAME" ]]; then exit 1; fi
 
-if [ -f "$SESSION_CACHE" ]; then
-    jq -e '.approvals."session-all"' "$SESSION_CACHE" &>/dev/null && { echo "$ALLOW"; exit 0; }
-    jq -e ".approvals.\\"tool:$TOOL\\"" "$SESSION_CACHE" &>/dev/null && { echo "$ALLOW"; exit 0; }
+# Determine notification method based on Focus Mode
+USE_REMOTE=false
+USE_MACOS=false
+
+if [[ "$FOCUS_MODE" == "$REMOTE_FOCUS" ]]; then
+    USE_REMOTE=true
+elif [[ "$FOCUS_MODE" == "$MACOS_FOCUS" ]]; then
+    USE_MACOS=true
+else
+    # No matching Focus Mode - fall back to CLI prompt
+    exit 1
 fi
 
+# Check local whitelist first to avoid unnecessary notifications
+LOCAL_SETTINGS="$CWD/.claude/settings.local.json"
+if [ -f "$LOCAL_SETTINGS" ]; then
+    if [ "$TOOL" = "Bash" ]; then
+        CMD=$(echo "$TOOL_INPUT" | jq -r '.command // ""')
+        BASE_CMD=$(echo "$CMD" | awk '{print $1}')
+        if jq -e ".permissions.allow[] | select(. == \\"Bash($BASE_CMD:*)\\" or . == \\"Bash($CMD)\\")" "$LOCAL_SETTINGS" &>/dev/null; then
+            echo "$ALLOW"
+            exit 0
+        fi
+    fi
+fi
+
+# Check session cache for previously approved scopes
+if [ -f "$SESSION_CACHE" ]; then
+    if jq -e '.approvals."session-all"' "$SESSION_CACHE" &>/dev/null; then
+        echo "$ALLOW"
+        exit 0
+    fi
+    if jq -e ".approvals.\\"tool:$TOOL\\"" "$SESSION_CACHE" &>/dev/null; then
+        echo "$ALLOW"
+        exit 0
+    fi
+fi
+
+# Build details based on tool type
 case "$TOOL" in
-    Bash) DETAILS=$(echo "$TOOL_INPUT" | jq -r '.command // ""') ;;
-    Write|Edit) DETAILS="$TOOL: $(echo "$TOOL_INPUT" | jq -r '.file_path // ""')" ;;
-    *) DETAILS=$(echo "$TOOL_INPUT" | jq -c '.' | head -c 200) ;;
+    Bash)
+        CMD=$(echo "$TOOL_INPUT" | jq -r '.command // ""')
+        DETAILS="$CMD"
+        ;;
+    Write)
+        FILE=$(echo "$TOOL_INPUT" | jq -r '.file_path // ""')
+        CMD=""
+        DETAILS="Write: $FILE"
+        ;;
+    Edit)
+        FILE=$(echo "$TOOL_INPUT" | jq -r '.file_path // ""')
+        CMD=""
+        DETAILS="Edit: $FILE"
+        ;;
+    *)
+        CMD=""
+        DETAILS=$(echo "$TOOL_INPUT" | jq -c '.' | head -c 200)
+        ;;
 esac
 
+# Function: Show macOS approval dialog (always on top, clean UI)
+show_macos_approval() {
+    local TOOL="$1"
+    local DETAILS="$2"
+    local CWD="$3"
+
+    # Escape special characters for AppleScript
+    DETAILS=$(echo "$DETAILS" | sed 's/\\\\/\\\\\\\\/g; s/"/\\\\"/g')
+    CWD=$(echo "$CWD" | sed 's/\\\\/\\\\\\\\/g; s/"/\\\\"/g')
+
+    # Compact dialog text
+    local DIALOG_TEXT="Tool: $TOOL
+Command: $DETAILS
+
+Directory: $CWD"
+
+    # Show dialog - activate System Events to bring to front
+    DIALOG_RESULT=$(osascript 2>&1 <<APPLESCRIPT
+tell application "System Events"
+    activate
+    display dialog "$DIALOG_TEXT" ¬
+        buttons {"Deny", "Approve Once", "Approve Session"} ¬
+        default button "Approve Once" ¬
+        with title "Claude Code" ¬
+        with icon caution ¬
+        giving up after 120
+end tell
+APPLESCRIPT
+)
+    DIALOG_EXIT=$?
+
+    # Parse result
+    if [ $DIALOG_EXIT -ne 0 ]; then
+        return 1
+    fi
+
+    if echo "$DIALOG_RESULT" | grep -q "gave up:true"; then
+        return 1
+    elif echo "$DIALOG_RESULT" | grep -q "button returned:Approve Session"; then
+        echo "session-tool"
+        return 0
+    elif echo "$DIALOG_RESULT" | grep -q "button returned:Approve Once"; then
+        echo "once"
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Function: Create HMAC-SHA256 signature with header-based auth
 create_signature() {
-    local METHOD="$1" API_PATH="$2" BODY="$3" TS="$4" NONCE="$5" SECRET="$6"
+    local METHOD="$1"
+    local API_PATH="$2"
+    local BODY="$3"
+    local TS="$4"
+    local NONCE="$5"
+    local SECRET="$6"
+
+    # Hash body with SHA-256
     local BODY_HASH
-    [ -z "$BODY" ] && BODY_HASH=$(printf '' | openssl dgst -sha256 -binary | openssl enc -base64 -A) || BODY_HASH=$(printf '%s' "$BODY" | openssl dgst -sha256 -binary | openssl enc -base64 -A)
-    local CANONICAL=$(printf '%s\\n%s\\n%s\\n%s\\n%s' "$METHOD" "$API_PATH" "$BODY_HASH" "$TS" "$NONCE")
-    local SECRET_HEX=$(printf '%s' "$SECRET" | openssl enc -d -base64 -A | xxd -p -c 256 | tr -d '\\n')
+    if [ -z "$BODY" ]; then
+        BODY_HASH=$(printf '' | openssl dgst -sha256 -binary | openssl enc -base64 -A)
+    else
+        BODY_HASH=$(printf '%s' "$BODY" | openssl dgst -sha256 -binary | openssl enc -base64 -A)
+    fi
+
+    # Build canonical string
+    local CANONICAL
+    CANONICAL=$(printf '%s\\n%s\\n%s\\n%s\\n%s' "$METHOD" "$API_PATH" "$BODY_HASH" "$TS" "$NONCE")
+
+    # Decode secret from base64 to hex for openssl HMAC
+    local SECRET_HEX
+    SECRET_HEX=$(printf '%s' "$SECRET" | openssl enc -d -base64 -A | xxd -p -c 256 | tr -d '\\n')
+
+    # Create HMAC-SHA256 signature
     printf '%s' "$CANONICAL" | openssl dgst -sha256 -mac HMAC -macopt "hexkey:$SECRET_HEX" -binary | openssl enc -base64 -A
 }
 
-REQUEST_ID=$(openssl rand -hex 16)
-NONCE=$(openssl rand -base64 16 | tr -d '\\n')
-TS=$(date +%s)
-BODY=$(jq -c -n --arg rid "$REQUEST_ID" --arg tool "$TOOL" --arg details "$DETAILS" --arg cwd "$CWD" '{requestId:$rid,payload:{tool:$tool,details:$details,cwd:$cwd}}')
-SIGNATURE=$(create_signature "POST" "/api/v2/request" "$BODY" "$TS" "$NONCE" "$PAIRING_SECRET")
+# Function: Send approval request via pure bash (curl + headers)
+send_remote_request() {
+    local TOOL="$1"
+    local DETAILS="$2"
+    local CWD="$3"
 
-HTTP_CODE=$(curl -s -w "%{http_code}" -o /tmp/approve-resp-$$.json -X POST "$SERVER_URL/api/v2/request" -H "Content-Type: application/json" -H "X-Pairing-ID: $PAIRING_ID" -H "X-Timestamp: $TS" -H "X-Nonce: $NONCE" -H "Authorization: HMAC-SHA256 $SIGNATURE" -d "$BODY" --connect-timeout 5 --max-time 10)
+    # Generate request ID, nonce, and timestamp
+    local REQUEST_ID NONCE TS
+    REQUEST_ID=$(openssl rand -hex 16)
+    NONCE=$(openssl rand -base64 16 | tr -d '\\n')
+    TS=$(date +%s)
 
-if [[ "$HTTP_CODE" != "200" && "$HTTP_CODE" != "201" ]]; then rm -f /tmp/approve-resp-$$.json; echo "$DENY"; exit 0; fi
+    # Build request body
+    local BODY
+    BODY=$(jq -c -n \\
+        --arg requestId "$REQUEST_ID" \\
+        --arg tool "$TOOL" \\
+        --arg details "$DETAILS" \\
+        --arg cwd "$CWD" \\
+        '{requestId: $requestId, payload: {tool: $tool, details: $details, cwd: $cwd}}')
 
-TIMEOUT=120; POLL_START=$(date +%s)
-while [ $(($(date +%s) - POLL_START)) -lt $TIMEOUT ]; do
-    sleep 1
-    NONCE=$(openssl rand -base64 16 | tr -d '\\n'); TS=$(date +%s)
-    SIGNATURE=$(create_signature "GET" "/api/v2/decision/$REQUEST_ID" "" "$TS" "$NONCE" "$PAIRING_SECRET")
-    RESP=$(curl -s "$SERVER_URL/api/v2/decision/$REQUEST_ID" -H "X-Pairing-ID: $PAIRING_ID" -H "X-Timestamp: $TS" -H "X-Nonce: $NONCE" -H "Authorization: HMAC-SHA256 $SIGNATURE" --connect-timeout 5 --max-time 10)
-    STATUS=$(echo "$RESP" | jq -r '.data.status // "pending"')
-    SCOPE=$(echo "$RESP" | jq -r '.data.scope // "once"')
-    if [ "$STATUS" = "allowed" ]; then
-        rm -f /tmp/approve-resp-$$.json
-        if [[ "$SCOPE" == "session-all" || "$SCOPE" == "session-tool" ]]; then
-            [ ! -f "$SESSION_CACHE" ] && jq -n --arg s "$PPID" '{"sessionId":$s,"approvals":{}}' > "$SESSION_CACHE"
-            [ "$SCOPE" = "session-all" ] && jq --argjson t "$(date +%s)" '.approvals."session-all"={"approved":true,"timestamp":$t}' "$SESSION_CACHE" > "$SESSION_CACHE.tmp" && mv "$SESSION_CACHE.tmp" "$SESSION_CACHE"
-            [ "$SCOPE" = "session-tool" ] && jq --arg tool "$TOOL" --argjson t "$(date +%s)" '.approvals["tool:"+$tool]={"approved":true,"timestamp":$t}' "$SESSION_CACHE" > "$SESSION_CACHE.tmp" && mv "$SESSION_CACHE.tmp" "$SESSION_CACHE"
-        fi
-        echo "$ALLOW"; exit 0
-    elif [[ "$STATUS" == "denied" || "$STATUS" == "expired" ]]; then
-        rm -f /tmp/approve-resp-$$.json; echo "$DENY"; exit 0
+    # Create signature
+    local SIGNATURE
+    SIGNATURE=$(create_signature "POST" "/api/v2/request" "$BODY" "$TS" "$NONCE" "$PAIRING_SECRET")
+
+    # Send request
+    local HTTP_CODE RESPONSE_FILE
+    RESPONSE_FILE="/tmp/claude-approve-response-$$.json"
+
+    HTTP_CODE=$(curl -s -w "%{http_code}" -o "$RESPONSE_FILE" \\
+        -X POST "\${SERVER_URL}/api/v2/request" \\
+        -H "Content-Type: application/json" \\
+        -H "X-Pairing-ID: $PAIRING_ID" \\
+        -H "X-Timestamp: $TS" \\
+        -H "X-Nonce: $NONCE" \\
+        -H "Authorization: HMAC-SHA256 $SIGNATURE" \\
+        -d "$BODY" \\
+        --connect-timeout 5 \\
+        --max-time 10)
+
+    if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "201" ]; then
+        rm -f "$RESPONSE_FILE"
+        echo "deny|once"
+        return 1
     fi
-done
-rm -f /tmp/approve-resp-$$.json; echo "$DENY"
+
+    # Poll for decision
+    local TIMEOUT=120
+    local START ELAPSED
+    START=$(date +%s)
+
+    while true; do
+        ELAPSED=$(($(date +%s) - START))
+        if [ "$ELAPSED" -ge "$TIMEOUT" ]; then
+            rm -f "$RESPONSE_FILE"
+            echo "deny|once"
+            return 1
+        fi
+
+        sleep 1
+
+        # Generate new nonce and timestamp for each poll
+        NONCE=$(openssl rand -base64 16 | tr -d '\\n')
+        TS=$(date +%s)
+
+        # Sign GET request
+        SIGNATURE=$(create_signature "GET" "/api/v2/decision/$REQUEST_ID" "" "$TS" "$NONCE" "$PAIRING_SECRET")
+
+        # Poll for decision
+        local DECISION_RESPONSE
+        DECISION_RESPONSE=$(curl -s \\
+            "\${SERVER_URL}/api/v2/decision/$REQUEST_ID" \\
+            -H "X-Pairing-ID: $PAIRING_ID" \\
+            -H "X-Timestamp: $TS" \\
+            -H "X-Nonce: $NONCE" \\
+            -H "Authorization: HMAC-SHA256 $SIGNATURE" \\
+            --connect-timeout 5 \\
+            --max-time 10)
+
+        local STATUS SCOPE
+        STATUS=$(echo "$DECISION_RESPONSE" | jq -r '.data.status // "pending"')
+        SCOPE=$(echo "$DECISION_RESPONSE" | jq -r '.data.scope // "once"')
+
+        if [ "$STATUS" = "allowed" ]; then
+            rm -f "$RESPONSE_FILE"
+            echo "allow|$SCOPE"
+            return 0
+        elif [ "$STATUS" = "denied" ] || [ "$STATUS" = "expired" ]; then
+            rm -f "$RESPONSE_FILE"
+            echo "deny|once"
+            return 0
+        fi
+    done
+}
+
+# Route to appropriate notification method
+DECISION="deny"
+SCOPE="once"
+
+if [ "$USE_REMOTE" = true ]; then
+    RESULT=$(send_remote_request "$TOOL" "$DETAILS" "$CWD")
+    DECISION=$(echo "$RESULT" | cut -d'|' -f1)
+    SCOPE=$(echo "$RESULT" | cut -d'|' -f2)
+
+elif [ "$USE_MACOS" = true ]; then
+    APPROVAL_SCOPE=$(show_macos_approval "$TOOL" "$DETAILS" "$CWD")
+    APPROVAL_EXIT=$?
+
+    if [ $APPROVAL_EXIT -eq 0 ]; then
+        DECISION="allow"
+        SCOPE="$APPROVAL_SCOPE"
+    fi
+fi
+
+# Process decision and update session cache
+if [ "$DECISION" = "allow" ]; then
+    if [ "$SCOPE" = "session-tool" ] || [ "$SCOPE" = "session-all" ]; then
+        if [ ! -f "$SESSION_CACHE" ]; then
+            jq -n --arg sessionId "$PPID" '{"sessionId": $sessionId, "approvals": {}}' > "$SESSION_CACHE"
+        fi
+
+        CURRENT_TS=$(date +%s)
+        if [ "$SCOPE" = "session-all" ]; then
+            jq --argjson ts "$CURRENT_TS" '.approvals."session-all" = {"approved": true, "timestamp": $ts}' "$SESSION_CACHE" > "$SESSION_CACHE.tmp" && mv "$SESSION_CACHE.tmp" "$SESSION_CACHE"
+        elif [ "$SCOPE" = "session-tool" ]; then
+            jq --arg tool "$TOOL" --argjson ts "$CURRENT_TS" '.approvals["tool:" + $tool] = {"approved": true, "timestamp": $ts}' "$SESSION_CACHE" > "$SESSION_CACHE.tmp" && mv "$SESSION_CACHE.tmp" "$SESSION_CACHE"
+        fi
+    fi
+
+    echo "$ALLOW"
+else
+    echo "$DENY"
+fi
 HOOKEOF
 chmod +x ~/.claude-approve-hook.sh
 \`\`\`
@@ -455,9 +1008,18 @@ Click: https://www.icloud.com/shortcuts/b13ac25ce397415097a80cb6fe28fbad
 
 ## STEP 5: Create Focus Mode (Manual)
 System Settings → Focus → + → Custom → Name: "claude remote approve"
+(Optional: Also create "claude notification approval" for macOS-only dialogs)
 
 ## STEP 6: Restart Claude Code
 Exit and restart for hook to activate.
+
+---
+
+**Important Notes:**
+- Credentials are stored locally in \`~/.claude-approve-hook.sh\` (lines 2-4)
+- To view your credentials, ask Claude Code: "Show me the credentials in my approve hook"
+- To re-pair: Open the PWA → Settings → "Regenerate Credentials" → Copy new setup prompt
+- To disconnect: Open the PWA → Settings → "Unpair Device"
 
 **Credentials:** Server: ${url} | ID: ${p.pairingId}`;
 }
