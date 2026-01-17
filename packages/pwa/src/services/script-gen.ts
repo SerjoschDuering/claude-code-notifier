@@ -25,6 +25,16 @@ export function buildSetupPrompt(p: StoredPairingData): string {
   // Full hook script with all features: macOS dialog, remote push, session caching, local whitelist
   return `You are helping install Claude Code Approver - sends approval requests to iPhone via push notifications.
 
+**IMPORTANT - iOS Clipboard Bug Fix:**
+iOS clipboard sometimes corrupts text when copying. Before executing STEP 2, check line ~111 in the script for:
+\`\`\`
+local API_PA2"
+\`\`\`
+If you see this corruption, FIX IT to:
+\`\`\`
+local API_PATH="$2"
+\`\`\`
+
 **Credentials embedded - execute these steps:**
 
 ## STEP 1: Check Dependencies
