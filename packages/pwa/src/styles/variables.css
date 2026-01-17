@@ -1,0 +1,70 @@
+/* ============================================
+   CSS VARIABLES - Design Tokens
+   ============================================ */
+
+:root {
+  /* Core palette - deep charcoal with electric cyan */
+  --bg-void: #050608;
+  --bg-primary: #0a0c10;
+  --bg-elevated: #10131a;
+  --bg-surface: #161a24;
+  --bg-card: #1a1f2e;
+
+  /* Text hierarchy */
+  --text-primary: #f0f4f8;
+  --text-secondary: #8b95a5;
+  --text-muted: #5a6370;
+  --text-dim: #3d4450;
+
+  /* Accent - electric cyan */
+  --accent: #00fff0;
+  --accent-dim: rgba(0, 255, 240, 0.15);
+  --accent-glow: rgba(0, 255, 240, 0.4);
+
+  /* Semantic colors */
+  --success: #00ff88;
+  --success-dim: rgba(0, 255, 136, 0.15);
+  --warning: #ffaa00;
+  --warning-dim: rgba(255, 170, 0, 0.15);
+  --danger: #ff4466;
+  --danger-dim: rgba(255, 68, 102, 0.15);
+
+  /* Borders */
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.15);
+  --border-accent: rgba(0, 255, 240, 0.3);
+
+  /* Shadows */
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5);
+  --shadow-glow: 0 0 20px var(--accent-glow);
+
+  /* Typography */
+  --font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+
+  /* Spacing */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+
+  /* Border radius */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-full: 9999px;
+
+  /* Transitions */
+  --transition-fast: 0.15s ease;
+  --transition-base: 0.25s ease;
+  --transition-slow: 0.4s ease;
+
+  /* Safe areas */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
