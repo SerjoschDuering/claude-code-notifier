@@ -1,6 +1,4 @@
-# Claude Code Notifier - Testing Approval System
-<!-- Test comment for hook approval testing -->
-<!-- Additional test comment added during continuous testing -->
+# Claude Code Notifier
 
 **Approve Claude Code permission requests from your iPhone via push notifications.**
 
@@ -32,68 +30,8 @@ When Claude Code wants to run a command, write a file, or perform other actions,
 - ⚡ **Fast** - Edge-deployed on Cloudflare Workers
 - 🆓 **Free** - Runs entirely on Cloudflare free tier
 - 📱 **PWA** - No app store, just add to Home Screen
-- 🎛️ **Simple toggle** - Turn notifications on/off with one command
+- 🎛️ **Focus Mode routing** - Automatic switching between iPhone and macOS dialogs
 - ⏱️ **Session approvals** - Approve once, all session, or per-tool
-
-## Automatic Toggle with Focus Mode (Recommended)
-
-Set up once, never think about it again! The hook automatically detects your Focus Mode using Apple Shortcuts:
-
-**When "claude remote approve" Focus Mode is active** → Send notifications to iPhone 📱
-**When Focus Mode is off** → Show CLI prompts instead 💻
-
-**Setup:** [Complete Shortcuts Guide](./docs/SHORTCUTS-AUTOMATION.md) | [Quick Setup](./docs/FOCUS-MODE-QUICK-SETUP.md)
-
-**Benefits:**
-- ✅ Fully automatic (no manual toggling)
-- ✅ No Full Disk Access required
-- ✅ No file state needed
-- ✅ No automations needed
-- ✅ Real-time detection via `shortcuts` CLI
-
-**Quick setup (~2 min):**
-1. **Install the Shortcut:**
-   - **Download:** [Get Current Focus](https://www.icloud.com/shortcuts/b13ac25ce397415097a80cb6fe28fbad)
-   - Or create manually in Shortcuts app:
-     - Add action: "Get Current Focus"
-     - Add action: "Get Name" (connected to Focus output)
-     - Save as "Get Current Focus"
-
-2. **Create your Focus Mode:**
-   - System Settings > Focus > "+"
-   - Name it: **"claude remote approve"** (exact match required!)
-   - Configure as desired, then save
-
-   > **Tip:** You can use any Focus Mode name by adding `"focusModeName": "Your Mode"` to `~/.claude-approve/config.json`
-
-3. **Test it works:**
-   ```bash
-   shortcuts run "Get Current Focus"
-   # Should print: claude remote approve (when Focus is ON)
-   ```
-
-That's it! The hook will automatically check your Focus Mode before each approval request.
-
----
-
-## Manual Toggle (Alternative)
-
-Prefer manual control? Simple commands are available:
-
-```bash
-# Turn OFF notifications (use local CLI prompts instead)
-claude-notify-off
-
-# Turn ON notifications (send to iPhone)
-claude-notify-on
-
-# Check current status
-claude-notify-status
-```
-
-**Use case:** Working at your desk? Run `claude-notify-off`. On the couch? Run `claude-notify-on`.
-
-These commands are automatically added to your `~/.zshrc` during installation.
 
 ## Quick Start
 
@@ -103,9 +41,7 @@ These commands are automatically added to your `~/.zshrc` during installation.
 - iPhone with iOS 16.4+ (must add the PWA to Home Screen for push)
 - macOS with `jq`, `curl`, `openssl`, and `xxd` installed
 
-## Step-by-Step Install
-
-### 1. Deploy the Backend (Self-Hosted)
+### 1. Deploy the Backend
 
 ```bash
 git clone https://github.com/SerjoschDuering/claude-code-notifier.git
@@ -140,69 +76,42 @@ wrangler pages deploy dist --project-name=claude-approver
 1. Open your PWA URL in Safari on iPhone
 2. Tap Share → "Add to Home Screen"
 3. Open the app FROM Home Screen (not Safari!)
-4. Tap "Pair Device" and scan the QR code
+4. Complete the pairing wizard
 5. Allow push notifications when prompted
 
 ### 4. Install the Hook
 
-After pairing, the PWA shows a **Setup** button with a complete bash script. Copy it and run in your terminal. The script:
+After pairing, the PWA shows a **Setup Prompt**. Copy it and paste into Claude Code. The AI will:
 
-- Creates `~/.claude-approve-hook.sh` with embedded credentials
-- Uses pure bash (curl + openssl) - no npm dependencies
-- Signs requests with HMAC-SHA256 header-based authentication
+- Create `~/.claude-approve-hook.sh` with embedded credentials
+- Configure `~/.claude/settings.json` with the hook
+- Set up the Focus Mode shortcut
 
-Alternatively, manually add to `~/.claude/settings.json`:
+The hook uses pure bash (curl + openssl) with HMAC-SHA256 header-based authentication - no npm dependencies.
 
-```json
-{
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash|Write|Edit",
-        "hooks": [{"type": "command", "command": "$HOME/.claude-approve-hook.sh"}]
-      }
-    ]
-  }
-}
-```
-## Hook Configuration
+## Focus Mode Routing
 
-The hook intercepts Claude Code tool calls and sends them for approval.
+The hook automatically detects your Focus Mode and routes accordingly:
 
-### Available Matchers
+| Focus Mode | Behavior |
+|------------|----------|
+| `claude remote approve` | Send push notification to iPhone 📱 |
+| `claude notification approval` | Show macOS native dialog 💻 |
+| Any other / none | Fall back to CLI prompt |
 
-```json
-{
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash",           // Shell commands
-        "hooks": [{ "type": "command", "command": "..." }]
-      },
-      {
-        "matcher": "Write",          // File writes
-        "hooks": [{ "type": "command", "command": "..." }]
-      },
-      {
-        "matcher": "Edit",           // File edits
-        "hooks": [{ "type": "command", "command": "..." }]
-      },
-      {
-        "matcher": "Bash|Write|Edit", // Multiple tools
-        "hooks": [{ "type": "command", "command": "..." }]
-      }
-    ]
-  }
-}
-```
+### Setup Focus Mode
 
-### Hook Script
+1. **Install the Shortcut:** [Get Current Focus](https://www.icloud.com/shortcuts/b13ac25ce397415097a80cb6fe28fbad)
 
-The `hook/approve-hook.sh` script:
-1. Reads tool input from stdin (JSON)
-2. Sends approval request to your Worker
-3. Polls for your decision
-4. Returns proper `hookSpecificOutput` with `permissionDecision: "allow"` or `"deny"`
+2. **Create Focus Mode:**
+   - System Settings → Focus → "+"
+   - Name: **"claude remote approve"** (exact match required)
+
+3. **Test:**
+   ```bash
+   shortcuts run "Get Current Focus"
+   # Should print: claude remote approve (when Focus is ON)
+   ```
 
 ## Project Structure
 
@@ -210,7 +119,7 @@ The `hook/approve-hook.sh` script:
 claude-code-notifier/
 ├── packages/
 │   ├── shared/      # Shared TypeScript types
-│   ├── worker/      # Cloudflare Worker (API + v2 header auth)
+│   ├── worker/      # Cloudflare Worker (API + header auth)
 │   └── pwa/         # Progressive Web App (generates setup scripts)
 ├── hook/            # Claude Code hook scripts (pure bash)
 └── docs/            # Documentation
@@ -223,7 +132,6 @@ claude-code-notifier/
 - **Timestamp validation**: ±60 second drift allowed
 - **Rate limiting**: 30 requests per 10 minutes
 - **Request TTL**: Pending requests expire in 60 seconds
-- **Max pending**: 2,000 concurrent requests per pairing
 
 ## Development
 
@@ -248,7 +156,7 @@ cd packages/pwa && pnpm dev
 - Check `~/.claude/settings.json` syntax
 - Ensure hook script is executable: `chmod +x ~/.claude-approve-hook.sh`
 - Check dependencies: `which jq curl openssl xxd`
-- **Note:** Claude Code's PreToolUse hooks are intermittently unreliable ([GitHub #6305](https://github.com/anthropics/claude-code/issues/6305)). Try restarting Claude Code or using absolute path instead of `$HOME` in settings.
+- Try restarting Claude Code
 
 ### "Device not paired" error
 
@@ -257,11 +165,7 @@ cd packages/pwa && pnpm dev
 
 ## Contributing
 
-PRs welcome! Please:
-1. Fork the repo
-2. Create a feature branch
-3. Make your changes
-4. Submit a PR
+PRs welcome! Please fork, create a feature branch, and submit a PR.
 
 ## License
 
@@ -270,9 +174,3 @@ MIT - see [LICENSE](LICENSE)
 ## Disclaimer
 
 "Claude" and "Claude Code" are trademarks of Anthropic PBC. This project is an unofficial third-party tool that extends Claude Code functionality with remote approval notifications. It is not affiliated with, endorsed by, or maintained by Anthropic.
-
-## Acknowledgments
-
-- [Cloudflare Workers](https://workers.cloudflare.com/) for serverless edge compute
-- [Web Push](https://developer.mozilla.org/en-US/docs/Web/API/Push_API) for notifications
-- [Claude Code](https://claude.ai/) for the AI coding assistant
