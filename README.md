@@ -8,6 +8,12 @@ When Claude Code wants to run a command, write a file, or perform other actions,
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 
+## 🚀 Try It Now
+
+**Live PWA:** [https://claude-approver.pages.dev](https://claude-approver.pages.dev)
+
+Open on your iPhone, add to Home Screen, and follow the pairing wizard.
+
 ## How It Works
 
 ```
